@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 import unicodedata
@@ -14,13 +15,21 @@ from fitnutri.agents import (
     AgenteTriagem,
 )
 
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.1.1"
 PDF_BUCKET = os.getenv("FITNUTRI_EXAM_BUCKET", "fitnutri-exames")
 MAX_PDF_BYTES = min(int(os.getenv("FITNUTRI_MAX_PDF_BYTES", "4000000")), 4_000_000)
 MAX_EXTRACTED_TEXT = int(os.getenv("FITNUTRI_MAX_EXAM_TEXT", "60000"))
 DISPATCH_MODE = os.getenv("FITNUTRI_DISPATCH_MODE", "manual").strip().lower()
-SESSION_SECRET = os.getenv("FITNUTRI_SESSION_SECRET", "fitnutri-not-configured")
 ADMIN_PASSWORD = os.getenv("FITNUTRI_ADMIN_PASSWORD", "")
+_explicit_session_secret = os.getenv("FITNUTRI_SESSION_SECRET", "")
+SESSION_SECRET = (
+    _explicit_session_secret
+    or (
+        hashlib.sha256(f"fitnutri-session-v1:{ADMIN_PASSWORD}".encode("utf-8")).hexdigest()
+        if ADMIN_PASSWORD
+        else "fitnutri-not-configured"
+    )
+)
 WORKER_TOKEN = os.getenv("FITNUTRI_WORKER_TOKEN", "")
 ALLOWED_ORIGINS = [x.strip() for x in os.getenv("ALLOWED_ORIGINS", "").split(",") if x.strip()]
 
