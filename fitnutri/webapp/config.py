@@ -15,9 +15,10 @@ from fitnutri.agents import (
     AgenteTriagem,
 )
 
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0"
 PDF_BUCKET = os.getenv("FITNUTRI_EXAM_BUCKET", "fitnutri-exames")
-MAX_PDF_BYTES = min(int(os.getenv("FITNUTRI_MAX_PDF_BYTES", "4000000")), 4_000_000)
+MAX_PDF_BYTES = min(int(os.getenv("FITNUTRI_MAX_PDF_BYTES", "6000000")), 6_000_000)
+MAX_EXAM_FILES = min(max(int(os.getenv("FITNUTRI_MAX_EXAM_FILES", "10")), 1), 20)
 MAX_EXTRACTED_TEXT = int(os.getenv("FITNUTRI_MAX_EXAM_TEXT", "60000"))
 DISPATCH_MODE = os.getenv("FITNUTRI_DISPATCH_MODE", "manual").strip().lower()
 ADMIN_PASSWORD = os.getenv("FITNUTRI_ADMIN_PASSWORD", "")
