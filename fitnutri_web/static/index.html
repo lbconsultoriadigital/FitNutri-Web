@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏥 FitNutri — Clínica Digital</title>
+    <style>
+        /* ─── Reset & Base ─────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #0f3460;
+            --primary-light: #16213e;
+            --accent: #e94560;
+            --accent-hover: #d63850;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --text: #1a1a2e;
+            --text-light: #555;
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --shadow: 0 2px 12px rgba(0,0,0,0.08);
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ─── Header ───────────────────────────────────────────── */
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        header h1 { font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        header .status {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ─── Container ─────────────────────────────────────────── */
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+
+        /* ─── Cards de Ação ─────────────────────────────────────── */
+        .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .card {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-2px); }
+        .card h2 { font-size: 1.2rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .card p { color: var(--text-light); font-size: 0.9rem; margin-bottom: 16px; }
+        .card-footer { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        /* ─── Botões ────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 20px; border: none; border-radius: var(--radius-sm);
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; text-decoration: none;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); transform: scale(1.02); }
+        .btn-secondary { background: #e8e8ec; color: var(--text); }
+        .btn-secondary:hover { background: #ddd; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+        .btn-outline:hover { background: var(--accent); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ─── Modal ─────────────────────────────────────────────── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white; border-radius: var(--radius);
+            width: 90%; max-width: 600px; max-height: 85vh;
+            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            padding: 20px 24px; border-bottom: 1px solid #eee;
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; background: white; z-index: 1;
+        }
+        .modal-header h2 { margin: 0; font-size: 1.2rem; }
+        .modal-close {
+            background: none; border: none; font-size: 1.5rem;
+            cursor: pointer; color: #999; padding: 4px 8px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 16px 24px; border-top: 1px solid #eee;
+            display: flex; gap: 10px; justify-content: flex-end;
+        }
+
+        /* ─── Formulário ────────────────────────────────────────── */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .form-grid .full { grid-column: 1 / -1; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-light); }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 9px 12px; border: 1px solid #ddd; border-radius: var(--radius-sm);
+            font-size: 0.9rem; font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(233,69,96,0.1);
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+
+        /* ─── Lista de Pacientes ────────────────────────────────── */
+        .pacientes-list { display: grid; gap: 12px; }
+        .paciente-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; background: var(--card);
+            border-radius: var(--radius-sm); box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+        .paciente-item:hover { transform: translateX(4px); }
+        .paciente-info h3 { font-size: 1rem; margin-bottom: 4px; }
+        .paciente-info span { font-size: 0.8rem; color: var(--text-light); }
+        .paciente-actions { display: flex; gap: 8px; }
+        .vazio {
+            text-align: center; padding: 60px 20px; color: var(--text-light);
+        }
+        .vazio h3 { font-size: 1.5rem; margin-bottom: 8px; color: var(--text); }
+        .vazio p { font-size: 0.9rem; }
+
+        /* ─── Laudo Viewer ──────────────────────────────────────── */
+        .laudo-viewer {
+            background: white; border-radius: var(--radius); padding: 30px;
+            box-shadow: var(--shadow); margin-top: 20px; display: none;
+            max-height: 70vh; overflow-y: auto;
+        }
+        .laudo-viewer.active { display: block; }
+        .laudo-viewer h2 { margin-bottom: 20px; }
+        .laudo-content { line-height: 1.7; font-size: 0.95rem; }
+        .laudo-content table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.85rem; }
+        .laudo-content th, .laudo-content td {
+            border: 1px solid #ddd; padding: 8px 12px; text-align: left;
+        }
+        .laudo-content th { background: var(--primary); color: white; }
+        .laudo-content h1 { font-size: 1.4rem; color: var(--primary); }
+        .laudo-content h2 { font-size: 1.2rem; color: var(--primary); margin-top: 24px; }
+        .laudo-content h3 { font-size: 1.05rem; margin-top: 16px; }
+        .laudo-content blockquote {
+            border-left: 4px solid var(--accent); padding: 10px 16px;
+            margin: 12px 0; background: #fdf2f2; border-radius: 4px;
+        }
+        .laudo-content hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+
+        /* ─── Loading ───────────────────────────────────────────── */
+        .loading {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed; bottom: 30px; right: 30px;
+            padding: 14px 24px; border-radius: var(--radius-sm);
+            color: white; font-weight: 600; z-index: 2000;
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.3s;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--accent); }
+
+        /* ─── Responsivo ────────────────────────────────────────── */
+        @media (max-width: 768px) {
+            .actions { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            header { padding: 16px 20px; flex-direction: column; gap: 10px; text-align: center; }
+            .paciente-item { flex-direction: column; gap: 12px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════ -->
+<header>
+    <h1>🏥 FitNutri — Clínica Digital</h1>
+    <div class="status">
+        <span class="status-dot"></span>
+        <span>Online — <span id="serverPort">8080</span></span>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- ═══ AÇÕES ══════════════════════════════════════════════════ -->
+    <div class="actions">
+        <div class="card">
+            <h2>📋 Novo Atendimento</h2>
+            <p>Inicie uma consulta completa com todos os 6 especialistas da FitNutri.</p>
+            <div class="card-footer">
+                <button class="btn btn-primary" onclick="abrirModalNovoPaciente()">
+                    ➕ Novo Paciente
+                </button>
+                <button class="btn btn-secondary" onclick="abrirModalRapido()">
+                    ⚡ Atendimento Rápido
+                </button>
+            </div>
+        </div>
+        <div class="card">
+            <h2>📂 Pacientes</h2>
+            <p>Visualize laudos completos de todos os pacientes atendidos.</p>
+            <div class="card-footer">
+                <button class="btn btn-secondary" onclick="carregarPacientes()">
+                    🔄 Atualizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ LISTA DE PACIENTES ════════════════════════════════════ -->
+    <h2 style="margin-bottom:16px;">📂 Pacientes Atendidos</h2>
+    <div id="pacientesList" class="pacientes-list">
+        <div class="vazio">
+            <h3>📭 Nenhum paciente ainda</h3>
+            <p>Inicie um novo atendimento para começar.</p>
+        </div>
+    </div>
+
+    <!-- ═══ LAUDO VIEWER ═══════════════════════════════════════════ -->
+    <div id="laudoViewer" class="laudo-viewer">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 id="laudoTitle">📄 Laudo</h2>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="fecharLaudo()">✕ Fechar</button>
+            </div>
+        </div>
+        <div id="laudoContent" class="laudo-content"></div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: NOVO PACIENTE ═════════════════════════════════════ -->
+<div id="modalNovoPaciente" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>📋 Novo Atendimento</h2>
+            <button class="modal-close" onclick="fecharModal('modalNovoPaciente')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="formPaciente" onsubmit="executarPipeline(event)">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nome completo *</label>
+                        <input type="text" id="f_nome" required placeholder="Ex: Maria Silva">
+                    </div>
+                    <div class="form-group">
+                        <label>Idade *</label>
+                        <input type="number" id="f_idade" required min="1" max="150">
+                    </div>
+                    <div class="form-group">
+                        <label>Peso (kg) *</label>
+                        <input type="number" id="f_peso" required step="0.1" min="1" max="500">
+                    </div>
+                    <div class="form-group">
+                        <label>Altura (m) *</label>
+                        <input type="number" id="f_altura" required step="0.01" min="0.5" max="2.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Sexo</label>
+                        <select id="f_sexo">
+                            <option value="masculino">Masculino</option>
+                            <option value="feminino">Feminino</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Profissão</label>
+                        <input type="text" id="f_profissao" placeholder="Ex: Engenheiro">
+                    </div>
+                    <div class="form-group">
+                        <label>Objetivo *</label>
+                        <select id="f_objetivo">
+                            <option value="emagrecimento">Emagrecimento</option>
+                            <option value="hipertrofia">Hipertrofia</option>
+                            <option value="performance">Performance</option>
+                            <option value="recomposicao_corporal" selected>Recomposição Corporal</option>
+                            <option value="saude_bem_estar">Saúde e Bem-Estar</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group full">
+                        <label>Descrição do objetivo</label>
+                        <textarea id="f_objetivo_desc" placeholder="Ex: Perder gordura e ganhar massa muscular..."></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label>Condições de saúde / Medicamentos</label>
+                        <textarea id="f_condicoes" placeholder="Ex: DRGE, hipertensão, medicamentos em uso..."></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label>Exames laboratoriais (cole os resultados)</label>
+                        <textarea id="f_exames" placeholder="Ex: Vitamina D: 18 ng/mL&#10;Colesterol LDL: 142 mg/dL&#10;..."></textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label>Observações / Preferências</label>
+                        <textarea id="f_obs" placeholder="Preferências alimentares, restrições, lesões, etc."></textarea>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modalNovoPaciente')">Cancelar</button>
+            <button class="btn btn-primary" onclick="executarPipeline(event)" id="btnExecutar">
+                🚀 Iniciar Atendimento
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: ATENDIMENTO RÁPIDO ════════════════════════════════ -->
+<div id="modalRapido" class="modal-overlay">
+    <div class="modal" style="max-width:450px;">
+        <div class="modal-header">
+            <h2>⚡ Atendimento Rápido</h2>
+            <button class="modal-close" onclick="fecharModal('modalRapido')">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="formRapido">
+                <div class="form-grid" style="grid-template-columns:1fr;">
+                    <div class="form-group">
+                        <label>Nome *</label>
+                        <input type="text" id="r_nome" required placeholder="Nome do paciente">
+                    </div>
+                    <div class="form-group">
+                        <label>Arquivo JSON de input</label>
+                        <input type="file" id="r_json" accept=".json">
+                        <span style="font-size:0.75rem;color:var(--text-light);margin-top:4px;">
+                            Use o formato do thiago-rocha-input.json
+                        </span>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modalRapido')">Cancelar</button>
+            <button class="btn btn-primary" onclick="executarRapido()">🚀 Executar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TOAST ════════════════════════════════════════════════════ -->
+<div id="toast" class="toast"></div>
+
+<!-- ═══ SCRIPTS ═══════════════════════════════════════════════════ -->
+<script>
+    const API = `http://localhost:${window.location.port || 8080}`;
+
+    // ─── Inicialização ──────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", () => {
+        carregarPacientes();
+        document.getElementById("serverPort").textContent = window.location.port || 8080;
+    });
+
+    // ─── Carregar Pacientes ─────────────────────────────────────────
+    async function carregarPacientes() {
+        const container = document.getElementById("pacientesList");
+        try {
+            const res = await fetch(`${API}/api/pacientes`);
+            const pacientes = await res.json();
+
+            if (!pacientes || pacientes.length === 0) {
+                container.innerHTML = `
+                    <div class="vazio">
+                        <h3>📭 Nenhum paciente ainda</h3>
+                        <p>Inicie um novo atendimento para começar.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = pacientes.map(p => `
+                <div class="paciente-item">
+                    <div class="paciente-info">
+                        <h3>👤 ${p.nome}</h3>
+                        <span>📅 ${p.data || "—"} &nbsp;|&nbsp; 🎯 ${p.objetivo || "—"}</span>
+                    </div>
+                    <div class="paciente-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="verLaudo('${p.slug}')">
+                            📄 Laudo
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="abrirLaudoHTML('${p.slug}')">
+                            🌐 HTML
+                        </button>
+                    </div>
+                </div>
+            `).join("");
+
+        } catch (err) {
+            container.innerHTML = `
+                <div class="vazio">
+                    <h3>❌ Erro de conexão</h3>
+                    <p>Não foi possível conectar ao servidor.</p>
+                    <button class="btn btn-primary" onclick="carregarPacientes()" style="margin-top:12px;">
+                        🔄 Tentar novamente
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    // ─── Executar Pipeline ──────────────────────────────────────────
+    async function executarPipeline(event) {
+        if (event) event.preventDefault();
+        const btn = document.getElementById("btnExecutar");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span> Processando...';
+
+        showToast("🚀 Pipeline iniciado! Aguarde...", "success");
+
+        const dados = {
+            nome: document.getElementById("f_nome").value,
+            idade: parseInt(document.getElementById("f_idade").value),
+            peso_kg: parseFloat(document.getElementById("f_peso").value),
+            altura_m: parseFloat(document.getElementById("f_altura").value),
+            sexo: document.getElementById("f_sexo").value,
+            profissao: document.getElementById("f_profissao").value,
+            objetivo: document.getElementById("f_objetivo").value,
+            objetivo_descricao: document.getElementById("f_objetivo_desc").value,
+            condicoes: document.getElementById("f_condicoes").value.split(",").map(s => s.trim()).filter(Boolean),
+            exames_texto: document.getElementById("f_exames").value,
+            obs: document.getElementById("f_obs").value,
+        };
+
+        try {
+            const res = await fetch(`${API}/api/executar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados),
+            });
+
+            const result = await res.json();
+
+            if (result.success) {
+                showToast(`✅ Laudo gerado com sucesso!`, "success");
+                fecharModal("modalNovoPaciente");
+                carregarPacientes();
+                if (result.slug) {
+                    setTimeout(() => verLaudo(result.slug), 500);
+                }
+            } else {
+                showToast(`❌ Erro: ${result.message || "Falha na execução"}`, "error");
+            }
+        } catch (err) {
+            showToast(`❌ Erro de conexão: ${err.message}`, "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = "🚀 Iniciar Atendimento";
+        }
+    }
+
+    // ─── Atendimento Rápido ─────────────────────────────────────────
+    async function executarRapido() {
+        const nome = document.getElementById("r_nome").value;
+        if (!nome) { showToast("❌ Informe o nome do paciente", "error"); return; }
+
+        const fileInput = document.getElementById("r_json");
+        let dados = { nome };
+
+        if (fileInput.files.length > 0) {
+            const text = await fileInput.files[0].text();
+            try {
+                dados = { ...JSON.parse(text), nome };
+            } catch {
+                showToast("❌ Arquivo JSON inválido", "error");
+                return;
+            }
+        }
+
+        showToast("🚀 Pipeline iniciado...", "success");
+
+        try {
+            const res = await fetch(`${API}/api/executar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados),
+            });
+
+            const result = await res.json();
+            if (result.success) {
+                showToast(`✅ Laudo gerado!`, "success");
+                fecharModal("modalRapido");
+                carregarPacientes();
+            } else {
+                showToast(`❌ ${result.message}`, "error");
+            }
+        } catch (err) {
+            showToast(`❌ ${err.message}`, "error");
+        }
+    }
+
+    // ─── Ver Laudo ──────────────────────────────────────────────────
+    async function verLaudo(slug) {
+        const viewer = document.getElementById("laudoViewer");
+        const content = document.getElementById("laudoContent");
+        const title = document.getElementById("laudoTitle");
+
+        content.innerHTML = "<p style='text-align:center;padding:40px;'><span class='loading' style='border-color:var(--accent);border-top-color:transparent;width:32px;height:32px;'></span> Carregando...</p>";
+        viewer.classList.add("active");
+
+        try {
+            const res = await fetch(`${API}/api/paciente?slug=${slug}`);
+            const dados = await res.json();
+
+            title.textContent = `📄 Laudo — ${dados.laudo_json?.paciente || slug}`;
+
+            if (dados.laudo_md) {
+                content.innerHTML = converterMDparaHTML(dados.laudo_md);
+            } else {
+                content.innerHTML = "<p style='color:var(--text-light)'>Laudo não encontrado.</p>";
+            }
+        } catch (err) {
+            content.innerHTML = `<p style="color:var(--accent)">❌ Erro ao carregar laudo: ${err.message}</p>`;
+        }
+    }
+
+    function fecharLaudo() {
+        document.getElementById("laudoViewer").classList.remove("active");
+    }
+
+    function abrirLaudoHTML(slug) {
+        window.open(`${API}/api/laudo-html?slug=${slug}`, "_blank");
+    }
+
+    // ─── Modais ─────────────────────────────────────────────────────
+    function abrirModalNovoPaciente() {
+        document.getElementById("modalNovoPaciente").classList.add("active");
+    }
+
+    function abrirModalRapido() {
+        document.getElementById("modalRapido").classList.add("active");
+    }
+
+    function fecharModal(id) {
+        document.getElementById(id).classList.remove("active");
+    }
+
+    // Fechar modal clicando fora
+    document.querySelectorAll(".modal-overlay").forEach(el => {
+        el.addEventListener("click", (e) => {
+            if (e.target === el) el.classList.remove("active");
+        });
+    });
+
+    // ─── Toast ──────────────────────────────────────────────────────
+    function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => toast.classList.remove("show"), 4000);
+    }
+
+    // ─── Conversor MD → HTML (simples) ─────────────────────────────
+    function converterMDparaHTML(md) {
+        let html = md
+            .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+            .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+            .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+            .replace(/^\|(.+)\|$/gm, (match) => {
+                const cols = match.split("|").filter(c => c.trim()).map(c => c.trim());
+                if (cols.every(c => /^-+$/.test(c))) return "</tbody><tbody>";
+                return `<tr>${cols.map(c => `<td>${c}</td>`).join("")}</tr>`;
+            })
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/^- (.+)$/gm, "<li>$1</li>")
+            .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
+            .replace(/^---+/gm, "<hr>")
+            .replace(/\n\n/g, "</p><p>");
+
+        // Monta tabelas
+        if (html.includes("<tr>")) {
+            html = html.replace(/(<tr>.*?<\/tr>)/gs, (match) => {
+                const linhas = match.match(/<tr>.*?<\/tr>/g) || [];
+                let table = "<table><thead>";
+                // Primeira linha é o cabeçalho
+                linhas.forEach((linha, i) => {
+                    if (i === 0) table += `<thead>${linha}</thead>`;
+                    else if (i === 1) table += `<tbody>${linha}`;
+                    else table += linhas[i];
+                });
+                table += "</tbody></table>";
+                return table;
+            });
+        }
+
+        html = html.replace(/<p><\/p>/g, "");
+        html = html.replace(/<\/tbody><tbody>/g, "");
+
+        return `<div class="laudo-content">${html}</div>`;
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,42 @@
+# FitNutri Local - Configuração do Sistema
+sistema:
+  nome: "FitNutri Local"
+  versao: "1.0.0"
+  ambiente: "desenvolvimento"
+
+deepseek:
+  model_flash: "deepseek-chat"
+  model_pro: "deepseek-reasoner"
+  temperatura_padrao: 0.3
+  max_tokens_padrao: 4096
+  timeout_segundos: 60
+
+pipeline:
+  modo: "sequencial"
+  parar_em_erro: true
+  salvar_intermediarios: true
+
+storage:
+  diretorio_base: "./pacientes"
+  formato_saida: ["md", "html"]
+  manter_logs: true
+
+agentes:
+  triagem:
+    ativo: true
+    modelo: "flash"
+  exames:
+    ativo: true
+    modelo: "pro"
+  suplementacao:
+    ativo: true
+    modelo: "pro"
+  nutricionista:
+    ativo: true
+    modelo: "flash"
+  educador_fisico:
+    ativo: true
+    modelo: "flash"
+  orquestrador:
+    ativo: true
+    modelo: "pro"

@@ -1,0 +1,12 @@
+# Gitignore para projeto FitNutri
+venv/
+.env
+__pycache__/
+*.pyc
+pacientes/
+logs/
+.DS_Store
+.vscode/
+fitnutri.egg-info/
+dist/
+build/

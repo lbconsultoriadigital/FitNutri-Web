@@ -1,0 +1,17 @@
+#!/bin/bash
+echo "⚠️  Deseja realmente remover o FitNutri Local?"
+echo "   Isso NÃO apaga seus pacientes, apenas os apps."
+read -p "   Continuar? (s/N): " confirm
+if [ "$confirm" = "s" ]; then
+    # Para o servidor se estiver rodando
+    PID_FILE="/tmp/fitnutri-server.pid"
+    if [ -f "$PID_FILE" ]; then
+        kill $(cat "$PID_FILE") 2>/dev/null || true
+        rm -f "$PID_FILE"
+    fi
+    # Remove os apps
+    rm -rf "/Users/felipeleone/Documents/FitNutri/FitNutri.app"
+    rm -rf "/Users/felipeleone/Documents/FitNutri/Parar FitNutri.app"
+    echo "✅ Apps removidos!"
+    echo "   Seus pacientes em pacientes/ foram preservados."
+fi

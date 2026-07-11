@@ -1,0 +1,16 @@
+#!/bin/bash
+PID_FILE="/tmp/fitnutri-server.pid"
+if [ -f "$PID_FILE" ]; then
+    PID=$(cat "$PID_FILE")
+    if kill -0 "$PID" 2>/dev/null; then
+        kill "$PID"
+        rm -f "$PID_FILE"
+        osascript -e "display notification \"Servidor parado\" with title \"🏥 FitNutri\""
+        echo "✅ Servidor parado (PID: $PID)"
+    else
+        rm -f "$PID_FILE"
+        echo "⚠️  Servidor não estava rodando"
+    fi
+else
+    echo "⚠️  Servidor não estava rodando"
+fi
