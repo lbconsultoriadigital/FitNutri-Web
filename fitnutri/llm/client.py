@@ -1,42 +1,44 @@
-"""
-FitNutri Local - Cliente DeepSeek API
-Abstração para chamadas aos modelos Flash e Pro.
-"""
+"""Cliente DeepSeek com JSON mode, modelos configuráveis e retry controlado."""
 
-import os
-import time
+from __future__ import annotations
+
+import json
 import logging
+import os
+import random
+import time
 from typing import Optional
+
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
 
 class DeepSeekClient:
-    """Cliente para API do DeepSeek.
+    """Cliente compatível com a API OpenAI da DeepSeek.
 
-    Suporta:
-    - DeepSeek V4 Flash (rápido, baixo custo) → "deepseek-chat"
-    - DeepSeek V4 Pro (análise profunda) → "deepseek-reasoner"
+    Os IDs dos modelos ficam em variáveis de ambiente para evitar dependência
+    de aliases que possam mudar no provedor.
     """
 
-    MODELS = {
-        "flash": "deepseek-chat",
-        "pro": "deepseek-reasoner",
-    }
+    @property
+    def models(self) -> dict[str, str]:
+        return {
+            "flash": os.getenv("DEEPSEEK_MODEL_FLASH", "deepseek-chat"),
+            "pro": os.getenv("DEEPSEEK_MODEL_PRO", "deepseek-reasoner"),
+        }
 
-    def __init__(self, api_key: Optional[str] = None, timeout: int = 60):
+    def __init__(self, api_key: Optional[str] = None, timeout: int | None = None):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not self.api_key:
-            raise ValueError(
-                "DEEPSEEK_API_KEY não encontrada. "
-                "Configure no .env ou passe via parâmetro."
-            )
+            raise ValueError("DEEPSEEK_API_KEY não configurada")
 
+        request_timeout = timeout or int(os.getenv("DEEPSEEK_TIMEOUT_SECONDS", "180"))
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url="https://api.deepseek.com/v1",
-            timeout=timeout,
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            timeout=request_timeout,
+            max_retries=0,
         )
 
     def gerar(
@@ -48,18 +50,13 @@ class DeepSeekClient:
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> str:
-        """Gera resposta do modelo DeepSeek com retry automático."""
-        model_id = self.MODELS.get(modelo, self.MODELS["flash"])
-        tentativa = 0
+        """Gera JSON válido e repete apenas falhas transitórias."""
+        model_id = self.models.get(modelo, self.models["flash"])
+        last_error: Exception | None = None
 
-        while tentativa < max_retries:
+        for attempt in range(1, max_retries + 1):
             try:
-                tentativa += 1
-                logger.info(
-                    f"🔄 Chamando DeepSeek {model_id} "
-                    f"(tentativa {tentativa}/{max_retries})"
-                )
-
+                logger.info("Chamando modelo %s (%s/%s)", model_id, attempt, max_retries)
                 response = self.client.chat.completions.create(
                     model=model_id,
                     messages=[
@@ -68,23 +65,20 @@ class DeepSeekClient:
                     ],
                     temperature=temperatura,
                     max_tokens=max_tokens,
+                    response_format={"type": "json_object"},
                 )
-
                 content = response.choices[0].message.content
                 if not content:
                     raise ValueError("Resposta vazia da API")
 
-                logger.info(f"✅ Resposta recebida ({len(content)} chars)")
+                json.loads(content)
                 return content
-
-            except Exception as e:
-                logger.warning(f"❌ Tentativa {tentativa} falhou: {e}")
-                if tentativa >= max_retries:
-                    raise RuntimeError(
-                        f"Falha após {max_retries} tentativas: {e}"
-                    )
-                delay = 2 ** (tentativa - 1)
-                logger.info(f"⏳ Aguardando {delay}s antes de tentar novamente...")
+            except Exception as exc:
+                last_error = exc
+                logger.warning("Falha no modelo %s: %s", model_id, exc)
+                if attempt == max_retries:
+                    break
+                delay = min(8.0, (2 ** (attempt - 1)) + random.random())
                 time.sleep(delay)
 
-        raise RuntimeError("Falha inesperada no cliente DeepSeek")
+        raise RuntimeError(f"Falha após {max_retries} tentativas") from last_error
