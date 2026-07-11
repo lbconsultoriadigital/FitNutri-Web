@@ -73,8 +73,8 @@ class SupabaseStore:
     async def list_jobs(self, limit: int = 100) -> list[dict[str, Any]]:
         fields = (
             "id,slug,patient_name,status,current_stage,error_message,created_at,updated_at,"
-            "approved_at,reviewer_name,registration_type,registration_number,exam_file_name,"
-            "exam_file_size,exam_page_count,exam_text_length"
+            "approved_at,reviewer_name,registration_type,registration_number,exam_file_path,exam_file_name,"
+            "exam_file_size,exam_page_count,exam_text_length,exam_extract_warning"
         )
         rows = await self._request(
             "GET", "/rest/v1/fitnutri_jobs",
