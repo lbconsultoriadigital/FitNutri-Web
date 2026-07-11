@@ -73,8 +73,8 @@ class SupabaseStore:
     async def list_jobs(self, limit: int = 100) -> list[dict[str, Any]]:
         fields = (
             "id,slug,patient_name,status,current_stage,error_message,created_at,updated_at,"
-            "approved_at,reviewer_name,registration_type,registration_number,exam_file_path,exam_file_name,"
-            "exam_file_size,exam_page_count,exam_text_length,exam_extract_warning"
+            "approved_at,reviewer_name,registration_type,registration_number,exam_files,"
+            "exam_file_path,exam_file_name,exam_file_size,exam_page_count,exam_text_length,exam_extract_warning"
         )
         rows = await self._request(
             "GET", "/rest/v1/fitnutri_jobs",
@@ -95,6 +95,28 @@ class SupabaseStore:
             json_body={"p_job_id": job_id, "p_stage": stage},
         )
         return rows[0] if rows else None
+
+    async def create_signed_upload_url(self, path: str) -> str:
+        encoded = quote(f"{PDF_BUCKET}/{path}", safe="/")
+        headers = {**self.auth_headers, "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url}/storage/v1/object/upload/sign/{encoded}",
+                headers=headers,
+                json={},
+            )
+        if response.status_code >= 300:
+            logger.error("Signed upload error %s: %s", response.status_code, response.text[:500])
+            raise RuntimeError("Falha ao preparar upload")
+        relative = (response.json() or {}).get("url")
+        if not relative:
+            raise RuntimeError("URL de upload ausente")
+        if relative.startswith("http://") or relative.startswith("https://"):
+            return relative
+        if relative.startswith("/storage/v1"):
+            return f"{self.base_url}{relative}"
+        prefix = relative if relative.startswith("/") else f"/{relative}"
+        return f"{self.base_url}/storage/v1{prefix}"
 
     async def upload_pdf(self, path: str, content: bytes) -> None:
         encoded_path = quote(path, safe="/")
