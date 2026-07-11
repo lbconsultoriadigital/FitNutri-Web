@@ -16,9 +16,27 @@ def extract_agent_outputs(context_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def exam_files_for_job(job: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = job.get("exam_files")
+    files = [dict(item) for item in raw] if isinstance(raw, list) else []
+    if not files and job.get("exam_file_path"):
+        files.append({
+            "id": "legacy",
+            "path": job.get("exam_file_path"),
+            "name": job.get("exam_file_name") or "exames.pdf",
+            "size": job.get("exam_file_size") or 0,
+            "page_count": job.get("exam_page_count") or 0,
+            "text_length": job.get("exam_text_length") or 0,
+            "warning": job.get("exam_extract_warning"),
+        })
+    return files
+
+
 def public_job(job: dict[str, Any], include_artifacts: bool = False) -> dict[str, Any]:
     current_stage = int(job.get("current_stage") or 0)
     stage = PIPELINE_STAGES.get(current_stage, ("aguardando", "Aguardando", None))
+    files = exam_files_for_job(job)
+    warnings = [str(item.get("warning")) for item in files if item.get("warning")]
     result = {
         "id": job["id"],
         "slug": job["slug"],
@@ -35,12 +53,14 @@ def public_job(job: dict[str, Any], include_artifacts: bool = False) -> dict[str
         "reviewer_name": job.get("reviewer_name"),
         "registration_type": job.get("registration_type"),
         "registration_number": job.get("registration_number"),
-        "has_exam_pdf": bool(job.get("exam_file_path")),
-        "exam_file_name": job.get("exam_file_name"),
-        "exam_file_size": job.get("exam_file_size"),
-        "exam_page_count": job.get("exam_page_count"),
-        "exam_text_length": job.get("exam_text_length"),
-        "exam_extract_warning": job.get("exam_extract_warning"),
+        "has_exam_pdf": bool(files),
+        "exam_file_count": len(files),
+        "exam_files": files,
+        "exam_file_name": files[0].get("name") if files else None,
+        "exam_file_size": sum(int(item.get("size") or 0) for item in files),
+        "exam_page_count": sum(int(item.get("page_count") or 0) for item in files),
+        "exam_text_length": sum(int(item.get("text_length") or 0) for item in files),
+        "exam_extract_warning": " | ".join(warnings) if warnings else None,
         "processing_mode": "manual" if manual_processing() else "qstash",
         "requires_manual_processing": manual_processing() and current_stage < 6,
     }
