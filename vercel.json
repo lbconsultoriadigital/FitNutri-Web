@@ -1,6 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "env": {
+    "ENVIRONMENT": "production",
+    "PUBLIC_APP_URL": "https://fitnutri-web.vercel.app",
+    "ALLOWED_ORIGINS": "https://fitnutri-web.vercel.app,https://fitnutri-web-git-agent-pr-b316b8-lbconsultoriadigitals-projects.vercel.app",
+    "FITNUTRI_DISPATCH_MODE": "manual",
+    "FITNUTRI_EXAM_BUCKET": "fitnutri-exames",
+    "FITNUTRI_MAX_PDF_BYTES": "4000000",
+    "FITNUTRI_MAX_EXAM_TEXT": "60000",
+    "SUPABASE_URL": "https://awpuljvcikhehxvrxyvx.supabase.co",
+    "DEEPSEEK_BASE_URL": "https://api.deepseek.com/v1",
+    "DEEPSEEK_MODEL_FLASH": "deepseek-chat",
+    "DEEPSEEK_MODEL_PRO": "deepseek-reasoner",
+    "DEEPSEEK_TIMEOUT_SECONDS": "180"
+  },
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
