@@ -1,30 +1,61 @@
-# FitNutri — implantação da fundação assíncrona
+# FitNutri — protótipo funcional
 
-## Arquitetura
+## O que está incluído
 
-- Vercel: interface estática e API FastAPI.
-- Supabase: persistência dos atendimentos, contexto e laudos.
-- Upstash QStash: uma execução por etapa do pipeline.
-- DeepSeek: processamento dos seis agentes.
-- Aprovação humana: o laudo termina em `review_required` e precisa ser aprovado por profissional habilitado.
+- Interface premium responsiva com a identidade FitNutri.
+- Login administrativo por sessão HTTP-only.
+- Cadastro completo de atendimento e anamnese.
+- Upload privado de PDF de exames de até 4 MB.
+- Extração de texto com `pypdf` para alimentar os agentes.
+- Aviso quando o PDF parece escaneado e não possui camada de texto suficiente.
+- Execução dos seis agentes em etapas independentes:
+  1. Triagem
+  2. Exames
+  3. Suplementação
+  4. Nutrição
+  5. Treino
+  6. Consolidação
+- Visualização da saída estruturada de cada agente.
+- Laudo final em `review_required`.
+- Aprovação com nome, conselho e número de registro profissional.
+- Persistência no Supabase e PDF em bucket privado.
 
 ## Supabase
 
-Projeto criado:
+Projeto:
 
 - Nome: `FitNutri`
 - Referência: `awpuljvcikhehxvrxyvx`
 - Região: `sa-east-1`
 
-A migration está em:
+Migrations:
 
 ```text
 supabase/migrations/001_fitnutri_jobs.sql
+supabase/migrations/002_exam_pdf_storage.sql
 ```
 
-Ela já foi aplicada no projeto acima.
+A segunda migration cria as colunas de metadados do exame e o bucket privado `fitnutri-exames`.
 
-A tabela `public.fitnutri_jobs` está com RLS habilitado e sem acesso para `anon` e `authenticated`. A aplicação deve acessar o banco somente pelo backend usando a service role.
+## Modos de processamento
+
+### Protótipo — recomendado agora
+
+```text
+FITNUTRI_DISPATCH_MODE=manual
+```
+
+O painel chama `/api/atendimentos/{id}/advance` seis vezes, uma etapa por requisição. Isso torna o protótipo funcional sem depender de QStash e evita uma única requisição muito longa.
+
+### Produção com fila
+
+```text
+FITNUTRI_DISPATCH_MODE=qstash
+QSTASH_TOKEN=<token>
+FITNUTRI_WORKER_TOKEN=<segredo>
+```
+
+Cada etapa é publicada no QStash e processada por `/api/jobs/process`.
 
 ## Variáveis obrigatórias na Vercel
 
@@ -34,70 +65,49 @@ PUBLIC_APP_URL=https://SEU-DOMINIO.vercel.app
 ALLOWED_ORIGINS=https://SEU-DOMINIO.vercel.app
 
 FITNUTRI_ADMIN_PASSWORD=<senha forte>
-FITNUTRI_SESSION_SECRET=<segredo aleatório longo>
-FITNUTRI_WORKER_TOKEN=<segredo aleatório longo>
+FITNUTRI_SESSION_SECRET=<segredo longo>
+FITNUTRI_DISPATCH_MODE=manual
+FITNUTRI_EXAM_BUCKET=fitnutri-exames
+FITNUTRI_MAX_PDF_BYTES=4000000
+FITNUTRI_MAX_EXAM_TEXT=60000
 
 SUPABASE_URL=https://awpuljvcikhehxvrxyvx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<chave secreta, somente no servidor>
+SUPABASE_SERVICE_ROLE_KEY=<somente servidor>
 
-QSTASH_TOKEN=<token do QStash>
-
-DEEPSEEK_API_KEY=<chave DeepSeek>
+DEEPSEEK_API_KEY=<chave>
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-DEEPSEEK_MODEL_FLASH=<modelo rápido disponível na conta>
-DEEPSEEK_MODEL_PRO=<modelo de raciocínio disponível na conta>
-DEEPSEEK_TIMEOUT_SECONDS=180
+DEEPSEEK_MODEL_FLASH=deepseek-v4-flash
+DEEPSEEK_MODEL_PRO=deepseek-v4-pro
+DEEPSEEK_TIMEOUT_SECONDS=240
 ```
 
-Nunca exponha `SUPABASE_SERVICE_ROLE_KEY`, `QSTASH_TOKEN`, `FITNUTRI_WORKER_TOKEN` ou `DEEPSEEK_API_KEY` no frontend.
+Nunca exponha a service role do Supabase, a chave DeepSeek ou o token do worker no frontend.
 
-## Upstash QStash
-
-1. Crie ou use uma conta Upstash.
-2. Abra o QStash e copie o token.
-3. Configure `QSTASH_TOKEN` na Vercel.
-4. Configure `FITNUTRI_WORKER_TOKEN` com um valor aleatório forte.
-5. O backend encaminhará esse token como `Authorization` ao endpoint `/api/jobs/process`.
-
-## Fluxo
+## Fluxo funcional
 
 ```text
-POST /api/atendimentos
-  → cria job no Supabase
-  → publica etapa 1 no QStash
-  → cada etapa salva o contexto
-  → publica a próxima etapa
-  → etapa 6 gera os artefatos
-  → status review_required
-  → profissional revisa e aprova
-  → status approved
+Login
+  → novo atendimento
+  → anamnese + PDF opcional
+  → PDF armazenado no bucket privado
+  → texto extraído e incorporado ao contexto
+  → seis agentes executados em sequência
+  → saídas intermediárias disponíveis no painel
+  → laudo gerado como rascunho
+  → revisão e aprovação profissional
 ```
 
-## Checklist antes do merge
+## Limitações conhecidas do protótipo
 
-- [ ] Variáveis da Vercel configuradas nos ambientes Preview e Production.
-- [ ] QStash configurado.
-- [ ] Deployment Preview concluído.
-- [ ] `/api/health` retorna `operational`.
-- [ ] Login testado.
-- [ ] Atendimento fictício percorre as seis etapas.
-- [ ] Laudo aparece em `review_required`.
-- [ ] Aprovação registra nome e número profissional.
-- [ ] Nenhum segredo aparece no bundle do navegador ou nos logs.
+- A Vercel limita o corpo da requisição de Functions a 4,5 MB; por segurança o upload foi limitado a 4 MB.
+- `pypdf` extrai texto de PDFs com camada textual. PDFs totalmente escaneados exigirão OCR em uma etapa futura.
+- O modo manual depende de o navegador permanecer aberto durante a execução dos seis agentes.
+- O PR não deve ser mesclado antes de configurar os secrets e validar um atendimento fictício completo no Preview.
 
-## Smoke test
+## Validação local executada
 
-```bash
-curl https://SEU-DOMINIO.vercel.app/api/health
+```text
+python -m py_compile api/index.py
+node: validação sintática do JavaScript incorporado
+smoke test: health, login, schema e leitura de PDF
 ```
-
-Resposta esperada depois da configuração:
-
-```json
-{
-  "status": "operational",
-  "version": "2.0.0"
-}
-```
-
-Não faça merge apenas porque o build passou. Valide o fluxo assíncrono completo no deployment Preview com dados fictícios.
