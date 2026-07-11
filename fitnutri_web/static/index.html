@@ -377,7 +377,7 @@
 
 <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════ -->
 <script>
-    const API = `http://localhost:${window.location.port || 8080}`;
+    const API = window.location.origin;
 
     // ─── Inicialização ──────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", () => {
