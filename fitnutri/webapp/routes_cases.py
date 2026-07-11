@@ -8,8 +8,9 @@ from fastapi.responses import Response
 
 from .create_service import create_atendimento
 from .dependencies import get_store, parse_create_request, require_auth, require_csrf
-from .presenter import public_job
-from .schemas import ApprovalPayload, AtendimentoCreate
+from .exam_service import finalize_exam_upload, prepare_exam_upload
+from .presenter import exam_files_for_job, public_job
+from .schemas import ApprovalPayload, AtendimentoCreate, ExamUploadFinalize, ExamUploadPrepare
 from .store import SupabaseStore
 
 router = APIRouter()
@@ -46,16 +47,58 @@ async def get_attendance(job_id: str, store: SupabaseStore = Depends(get_store))
     return public_job(job, include_artifacts=True)
 
 
+@router.post("/api/atendimentos/{job_id}/exames/presign", dependencies=[Depends(require_csrf)])
+async def presign_exam(
+    job_id: str,
+    payload: ExamUploadPrepare,
+    store: SupabaseStore = Depends(get_store),
+):
+    return await prepare_exam_upload(job_id, payload, store)
+
+
+@router.post("/api/atendimentos/{job_id}/exames/finalize", dependencies=[Depends(require_csrf)])
+async def finalize_exam(
+    job_id: str,
+    payload: ExamUploadFinalize,
+    store: SupabaseStore = Depends(get_store),
+):
+    return await finalize_exam_upload(job_id, payload, store)
+
+
+@router.get("/api/atendimentos/{job_id}/exames/{file_id}", dependencies=[Depends(require_auth)])
+async def get_exam_file(job_id: str, file_id: str, store: SupabaseStore = Depends(get_store)):
+    job = await store.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Atendimento não encontrado")
+    item = next((entry for entry in exam_files_for_job(job) if entry.get("id") == file_id), None)
+    if not item or not item.get("path"):
+        raise HTTPException(status_code=404, detail="PDF de exames não encontrado")
+    try:
+        content = await store.download_pdf(str(item["path"]))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Não foi possível carregar o PDF") from exc
+    filename = str(item.get("name") or "exames.pdf")
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}"},
+    )
+
+
 @router.get("/api/atendimentos/{job_id}/exame-pdf", dependencies=[Depends(require_auth)])
 async def get_exam_pdf(job_id: str, store: SupabaseStore = Depends(get_store)):
     job = await store.get_job(job_id)
-    if not job or not job.get("exam_file_path"):
+    if not job:
+        raise HTTPException(status_code=404, detail="Atendimento não encontrado")
+    files = exam_files_for_job(job)
+    if not files:
         raise HTTPException(status_code=404, detail="PDF de exames não encontrado")
+    item = files[0]
     try:
-        content = await store.download_pdf(job["exam_file_path"])
+        content = await store.download_pdf(str(item["path"]))
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Não foi possível carregar o PDF") from exc
-    filename = job.get("exam_file_name") or "exames.pdf"
+    filename = str(item.get("name") or "exames.pdf")
     return Response(
         content=content,
         media_type="application/pdf",
