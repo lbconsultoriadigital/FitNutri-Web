@@ -1,5 +1,7 @@
-const drop=$('dropzone'),fileInput=$('examPdf'),fileList=$('fileList');
+const drop=$('dropzone'),fileInput=$('examPdf'),fileList=$('fileChip');
 const MAX_PDF_BYTES=6000000,MAX_EXAM_FILES=10;
+fileInput.multiple=true;fileList.className='file-list hidden';fileList.replaceChildren();
+const dropNote=drop.querySelector('.small-note');if(dropNote)dropNote.textContent='Arraste ou selecione até 10 PDFs, com no máximo 6 MB cada. Os arquivos ficarão privados no Supabase.';
 ['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.add('drag')}));
 ['dragleave','drop'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.remove('drag')}));
 drop.addEventListener('drop',e=>addFiles([...e.dataTransfer.files]));
