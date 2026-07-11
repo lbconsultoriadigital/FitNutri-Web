@@ -34,7 +34,7 @@ async def create_atendimento(
         content = await exam_file.read(MAX_PDF_BYTES + 1)
         await exam_file.close()
         if len(content) > MAX_PDF_BYTES:
-            raise HTTPException(status_code=413, detail="O PDF deve ter no máximo 4 MB")
+            raise HTTPException(status_code=413, detail="O PDF deve ter no máximo 6 MB")
         if not content.startswith(b"%PDF-"):
             raise HTTPException(status_code=422, detail="O arquivo anexado não é um PDF válido")
         extracted, page_count, warning = extract_pdf_text(content)
@@ -42,9 +42,21 @@ async def create_atendimento(
         if extracted:
             section = f"CONTEÚDO EXTRAÍDO DO PDF '{filename}':\n{extracted}"
             payload_data["exames_texto"] = "\n\n".join(filter(None, [manual_text, section]))[:MAX_EXTRACTED_TEXT]
-        storage_path = f"jobs/{job_id}/{filename}"
+        file_id = uuid.uuid4().hex
+        storage_path = f"jobs/{job_id}/{file_id}-{filename}"
         await store.upload_pdf(storage_path, content)
+        item = {
+            "id": file_id,
+            "path": storage_path,
+            "name": filename,
+            "size": len(content),
+            "page_count": page_count,
+            "text_length": len(extracted),
+            "warning": warning,
+            "uploaded_at": now,
+        }
         exam_metadata = {
+            "exam_files": [item],
             "exam_file_path": storage_path,
             "exam_file_name": filename,
             "exam_file_size": len(content),
