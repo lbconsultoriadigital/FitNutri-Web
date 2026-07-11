@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FitNutri — Clínica Digital</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,sans-serif;color:#18211c;background:#f5f7f5;--green:#1f6b45;--light:#e9f3ed;--red:#b42318;--border:#d9e1dc}
+    *{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid var(--border);padding:18px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}h1{font-size:1.25rem;margin:0}.wrap{max-width:1180px;margin:auto;padding:24px}.grid{display:grid;grid-template-columns:360px 1fr;gap:20px}.card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;box-shadow:0 4px 18px #1020180a}.hidden{display:none!important}label{font-size:.82rem;font-weight:650;display:block;margin:12px 0 5px}input,select,textarea,button{font:inherit}input,select,textarea{width:100%;padding:10px 11px;border:1px solid #cbd6cf;border-radius:9px;background:#fff}textarea{min-height:78px;resize:vertical}button{border:0;border-radius:9px;padding:10px 15px;font-weight:700;cursor:pointer}.primary{background:var(--green);color:#fff}.secondary{background:#e8eeea;color:#24352b}.danger{background:#fee4e2;color:var(--red)}button:disabled{opacity:.55;cursor:not-allowed}.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.top-actions{display:flex;gap:8px}.jobs{display:grid;gap:9px;margin-top:14px}.job{border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;background:#fff}.job:hover{border-color:#7da58d}.job strong,.job span{display:block}.muted{color:#66766c;font-size:.86rem}.badge{display:inline-block!important;width:auto;padding:3px 8px;border-radius:999px;background:var(--light);color:var(--green);font-size:.74rem;font-weight:700;margin-top:6px}.progress{height:9px;border-radius:99px;background:#e3e9e5;overflow:hidden;margin:12px 0}.progress div{height:100%;background:var(--green);transition:width .3s}.stage-list{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;font-size:.72rem;text-align:center}.stage{padding:7px 3px;border-radius:7px;background:#edf1ee}.stage.done{background:#d9f0e2;color:#17613c}.stage.current{outline:2px solid #68a47f}.notice{padding:11px 13px;border-radius:9px;background:#fff5d6;color:#614b00;margin:12px 0}.error{background:#fee4e2;color:#8a1c13}.success{background:#dff3e7;color:#175f3a}.viewer{width:100%;min-height:540px;border:1px solid var(--border);border-radius:10px;background:#fff}.login{max-width:420px;margin:9vh auto}.empty{text-align:center;padding:48px 15px;color:#718078}@media(max-width:850px){.grid{grid-template-columns:1fr}.stage-list{grid-template-columns:repeat(3,1fr)}header{padding:14px}.wrap{padding:14px}}
+  </style>
+</head>
+<body>
+<header><h1>FitNutri · Clínica Digital</h1><div class="top-actions"><span id="health" class="muted"></span><button id="logoutBtn" class="secondary hidden">Sair</button></div></header>
+<main class="wrap">
+  <section id="loginView" class="card login">
+    <h2>Acesso profissional</h2><p class="muted">Entre com a senha administrativa configurada na Vercel.</p>
+    <form id="loginForm"><label>Senha</label><input id="password" type="password" required autocomplete="current-password"><button class="primary" style="margin-top:14px;width:100%">Entrar</button></form>
+    <div id="loginMessage"></div>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div class="grid">
+      <aside>
+        <div class="card">
+          <h2>Novo atendimento</h2>
+          <form id="patientForm">
+            <label>Nome</label><input name="nome" required minlength="2">
+            <div class="row"><div><label>Idade</label><input name="idade" type="number" min="0" max="150" required></div><div><label>Sexo</label><select name="sexo"><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></div></div>
+            <div class="row"><div><label>Peso (kg)</label><input name="peso_kg" type="number" step="0.1" min="1" required></div><div><label>Altura (m)</label><input name="altura_m" type="number" step="0.01" min="0.5" max="3" required></div></div>
+            <label>Profissão</label><input name="profissao">
+            <label>Objetivo</label><select name="objetivo"><option value="emagrecimento">Emagrecimento</option><option value="hipertrofia">Hipertrofia</option><option value="performance">Performance</option><option value="recomposicao_corporal">Recomposição corporal</option><option value="saude_bem_estar">Saúde e bem-estar</option><option value="outro">Outro</option></select>
+            <label>Detalhes do objetivo</label><textarea name="objetivo_descricao"></textarea>
+            <label>Condições clínicas (separadas por vírgula)</label><textarea name="condicoes"></textarea>
+            <label>Exames</label><textarea name="exames_texto"></textarea>
+            <label>Observações</label><textarea name="obs"></textarea>
+            <button id="createBtn" class="primary" style="width:100%;margin-top:14px">Iniciar pipeline</button>
+          </form>
+          <div id="formMessage"></div>
+        </div>
+        <div class="card" style="margin-top:18px"><div class="row"><h2 style="margin:0">Atendimentos</h2><button id="refreshBtn" class="secondary">Atualizar</button></div><div id="jobs" class="jobs"></div></div>
+      </aside>
+      <section id="detail" class="card"><div class="empty">Selecione ou inicie um atendimento.</div></section>
+    </div>
+  </section>
+</main>
+<script>
+const state={csrf:null,current:null,timer:null};
+const $=id=>document.getElementById(id);
+const stages=['Triagem','Exames','Suplementação','Nutrição','Treino','Consolidação'];
+async function request(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(options.method&&options.method!=='GET'&&state.csrf)headers['X-CSRF-Token']=state.csrf;const res=await fetch(path,{credentials:'same-origin',...options,headers});let data={};try{data=await res.json()}catch{}if(!res.ok)throw new Error(data.detail||'Falha na requisição');return data}
+function message(el,text,type='notice'){el.innerHTML='';const d=document.createElement('div');d.className=type;d.textContent=text;el.appendChild(d)}
+async function boot(){try{const h=await request('/api/health');$('health').textContent=h.status==='operational'?'Sistema operacional':'Configuração incompleta'}catch{$('health').textContent='API indisponível'}const s=await request('/api/session');if(s.authenticated){state.csrf=s.csrf_token;showApp()}else showLogin()}
+function showLogin(){$('loginView').classList.remove('hidden');$('appView').classList.add('hidden');$('logoutBtn').classList.add('hidden')}
+async function showApp(){$('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');await loadJobs()}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();try{const d=await request('/api/login',{method:'POST',body:JSON.stringify({password:$('password').value})});state.csrf=d.csrf_token;message($('loginMessage'),'Acesso liberado.','success');await showApp()}catch(err){message($('loginMessage'),err.message,'notice error')}})
+$('logoutBtn').onclick=async()=>{try{await request('/api/logout',{method:'POST',body:'{}'})}finally{state.csrf=null;clearInterval(state.timer);showLogin()}}
+$('refreshBtn').onclick=loadJobs;
+$('patientForm').addEventListener('submit',async e=>{e.preventDefault();const form=new FormData(e.target);const payload=Object.fromEntries(form.entries());payload.idade=Number(payload.idade);payload.peso_kg=Number(payload.peso_kg);payload.altura_m=Number(payload.altura_m);payload.condicoes=payload.condicoes.split(',').map(x=>x.trim()).filter(Boolean);$('createBtn').disabled=true;try{const job=await request('/api/atendimentos',{method:'POST',body:JSON.stringify(payload)});message($('formMessage'),'Pipeline enfileirado.','success');e.target.reset();await loadJobs();await openJob(job.id)}catch(err){message($('formMessage'),err.message,'notice error')}finally{$('createBtn').disabled=false}})
+async function loadJobs(){const jobs=await request('/api/atendimentos');const box=$('jobs');box.innerHTML='';if(!jobs.length){const p=document.createElement('p');p.className='muted';p.textContent='Nenhum atendimento.';box.appendChild(p);return}jobs.forEach(j=>{const el=document.createElement('div');el.className='job';const name=document.createElement('strong');name.textContent=j.patient_name;const date=document.createElement('span');date.className='muted';date.textContent=new Date(j.created_at).toLocaleString('pt-BR');const badge=document.createElement('span');badge.className='badge';badge.textContent=j.status.replaceAll('_',' ');el.append(name,date,badge);el.onclick=()=>openJob(j.id);box.appendChild(el)})}
+async function openJob(id){clearInterval(state.timer);state.current=id;const job=await request('/api/atendimentos/'+id);renderDetail(job);if(['queued','running'].includes(job.status))state.timer=setInterval(async()=>{try{const fresh=await request('/api/atendimentos/'+id);renderDetail(fresh);if(!['queued','running'].includes(fresh.status)){clearInterval(state.timer);loadJobs()}}catch{}},3000)}
+function renderDetail(job){const root=$('detail');root.innerHTML='';const title=document.createElement('h2');title.textContent=job.patient_name;root.appendChild(title);const status=document.createElement('p');status.className='badge';status.textContent=job.status.replaceAll('_',' ');root.appendChild(status);const progress=document.createElement('div');progress.className='progress';const bar=document.createElement('div');bar.style.width=(job.current_stage/6*100)+'%';progress.appendChild(bar);root.appendChild(progress);const list=document.createElement('div');list.className='stage-list';stages.forEach((s,i)=>{const d=document.createElement('div');d.className='stage'+(i<job.current_stage?' done':i===job.current_stage&&job.current_stage<6?' current':'');d.textContent=s;list.appendChild(d)});root.appendChild(list);if(job.error_message){const e=document.createElement('div');e.className='notice error';e.textContent=job.error_message;root.appendChild(e)}if(job.status==='review_required'){const n=document.createElement('div');n.className='notice';n.textContent='Rascunho concluído. Revise antes de aprovar e entregar ao paciente.';root.appendChild(n);root.appendChild(approvalForm(job.id))}if(job.status==='approved'){const n=document.createElement('div');n.className='notice success';n.textContent=`Aprovado por ${job.reviewer_name} — ${job.registration_type} ${job.registration_number}`;root.appendChild(n)}if(job.laudo_html){const frame=document.createElement('iframe');frame.className='viewer';frame.setAttribute('sandbox','');frame.srcdoc=job.laudo_html;root.appendChild(frame)}}
+function approvalForm(id){const form=document.createElement('form');form.innerHTML='<h3>Aprovação profissional</h3><div class="row"><div><label>Nome do revisor</label><input name="reviewer_name" required></div><div><label>Registro</label><select name="registration_type"><option>CRM</option><option>CRN</option><option>CREF</option><option value="outro">Outro</option></select></div></div><label>Número do registro</label><input name="registration_number" required><label>Notas da revisão</label><textarea name="notes"></textarea><button class="primary">Aprovar laudo</button>';form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));try{const job=await request(`/api/atendimentos/${id}/approve`,{method:'POST',body:JSON.stringify(data)});renderDetail(job);loadJobs()}catch(err){alert(err.message)}};return form}
+boot().catch(err=>message($('loginMessage'),err.message,'notice error'));
+</script>
+</body>
+</html>
