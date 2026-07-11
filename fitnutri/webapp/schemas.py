@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .config import MAX_EXTRACTED_TEXT
+from .config import MAX_EXTRACTED_TEXT, MAX_PDF_BYTES
 
 
 class AtendimentoCreate(BaseModel):
@@ -44,6 +44,18 @@ class AtendimentoCreate(BaseModel):
     suplementos_atuais: list[str] = Field(default_factory=list, max_length=100)
     exames_texto: str = Field(default="", max_length=MAX_EXTRACTED_TEXT)
     obs: str = Field(default="", max_length=15_000)
+
+
+class ExamUploadPrepare(BaseModel):
+    filename: str = Field(min_length=1, max_length=180)
+    size: int = Field(gt=0, le=MAX_PDF_BYTES)
+    content_type: Literal["application/pdf"] = "application/pdf"
+
+
+class ExamUploadFinalize(BaseModel):
+    file_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    filename: str = Field(min_length=1, max_length=180)
+    size: int = Field(gt=0, le=MAX_PDF_BYTES)
 
 
 class WorkerPayload(BaseModel):
