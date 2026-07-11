@@ -1,0 +1,1 @@
+{"name": "fitnutri-web", "version": "1.0.0", "scripts": {"build": "echo \"Python backend only, skipping node build\""}, "dependencies": {}}
