@@ -104,10 +104,15 @@ Login
 - O modo manual depende de o navegador permanecer aberto durante a execução dos seis agentes.
 - O PR não deve ser mesclado antes de configurar os secrets e validar um atendimento fictício completo no Preview.
 
-## Validação local executada
+## Validação executada
 
 ```text
-python -m py_compile api/index.py
-node: validação sintática do JavaScript incorporado
-smoke test: health, login, schema e leitura de PDF
+python -m py_compile api/index.py fitnutri/webapp/*.py
+node --check public/app-core.js
+node --check public/app-form.js
+node --check public/app-list.js
+node --check public/app-render.js
+node --check public/app-run.js
+Supabase: migration, bucket privado e permissões confirmados
+Vercel Preview: build concluído com sucesso
 ```
