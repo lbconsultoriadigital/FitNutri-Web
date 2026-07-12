@@ -6,9 +6,10 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 
+from .config import MAX_PDF_BYTES
 from .create_service import create_atendimento
 from .dependencies import get_store, parse_create_request, require_auth, require_csrf
-from .exam_service import finalize_exam_upload, prepare_exam_upload
+from .exam_service import finalize_exam_upload, prepare_exam_upload, upload_exam_content
 from .presenter import exam_files_for_job, public_job
 from .schemas import ApprovalPayload, AtendimentoCreate, ExamUploadFinalize, ExamUploadPrepare
 from .store import SupabaseStore
@@ -45,6 +46,24 @@ async def get_attendance(job_id: str, store: SupabaseStore = Depends(get_store))
     if not job:
         raise HTTPException(status_code=404, detail="Atendimento não encontrado")
     return public_job(job, include_artifacts=True)
+
+
+@router.post("/api/atendimentos/{job_id}/exames/upload", dependencies=[Depends(require_csrf)])
+async def upload_exam(
+    job_id: str,
+    filename: str,
+    request: Request,
+    store: SupabaseStore = Depends(get_store),
+):
+    raw_length = request.headers.get("content-length")
+    if raw_length:
+        try:
+            if int(raw_length) > MAX_PDF_BYTES:
+                raise HTTPException(status_code=413, detail="Cada PDF deve ter no máximo 4 MB")
+        except ValueError:
+            pass
+    content = await request.body()
+    return await upload_exam_content(job_id, filename, content, store)
 
 
 @router.post("/api/atendimentos/{job_id}/exames/presign", dependencies=[Depends(require_csrf)])
