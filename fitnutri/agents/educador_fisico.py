@@ -9,16 +9,9 @@ import logging
 from ..models.schemas import ContextoPipeline, PlanoTreino, DiaTreino
 from .base import AgenteBase
 from ..validation.validator import ValidadorFitNutri, AlertaSeveridade
-from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
 validador = ValidadorFitNutri()
-
-try:
-    prompt_enhancer = get_prompt_enhancer()
-except Exception as e:
-    logger.warning(f"⚠️ Falha ao inicializar PromptEnhancer: {e}")
-    prompt_enhancer = None
 
 SYSTEM_PROMPT = """Você é Daniel Rocha, educador físico especialista em periodização de treinos da Clínica FitNutri.
 Desenhe planilhas de treino PERSONALIZADAS baseadas no perfil do paciente.
@@ -99,15 +92,7 @@ class AgenteEducadorFisico(AgenteBase):
         self.descricao = "Cria planilhas de treino personalizadas"
         self.modelo = "flash"
         self.temperatura = 0.4
-        if prompt_enhancer:
-            try:
-                self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_treino(SYSTEM_PROMPT)
-            except Exception as e:
-                logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
-                logger.warning("📋 Usando prompt padrão sem enriquecimento")
-                self.system_prompt = SYSTEM_PROMPT
-        else:
-            self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = SYSTEM_PROMPT
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")

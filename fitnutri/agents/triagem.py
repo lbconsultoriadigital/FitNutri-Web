@@ -13,16 +13,9 @@ from ..models.schemas import (
 )
 from .base import AgenteBase
 from ..validation.validator import ValidadorFitNutri, AlertaSeveridade
-from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
 validador = ValidadorFitNutri()
-
-try:
-    prompt_enhancer = get_prompt_enhancer()
-except Exception as e:
-    logger.warning(f"⚠️ Falha ao inicializar PromptEnhancer: {e}")
-    prompt_enhancer = None
 
 SYSTEM_PROMPT = """Você é o Agente de Triagem da Clínica FitNutri.
 Sua função é realizar uma anamnese completa e estruturada.
@@ -113,16 +106,7 @@ class AgenteTriagem(AgenteBase):
         self.descricao = "Coleta dados completos do paciente"
         self.modelo = "flash"
         self.temperatura = 0.3
-        
-        if prompt_enhancer:
-            try:
-                self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_triagem(SYSTEM_PROMPT)
-            except Exception as e:
-                logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
-                logger.warning("📋 Usando prompt padrão sem enriquecimento")
-                self.system_prompt = SYSTEM_PROMPT
-        else:
-            self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = SYSTEM_PROMPT
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
