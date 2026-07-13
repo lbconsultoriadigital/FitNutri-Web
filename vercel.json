@@ -1,23 +1,41 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "fitnutri_web/static/**",
-      "use": "@vercel/static"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "env": {
+    "ENVIRONMENT": "production",
+    "PUBLIC_APP_URL": "https://fitnutri-web.vercel.app",
+    "ALLOWED_ORIGINS": "https://fitnutri-web.vercel.app,https://fitnutri-web-git-agent-pr-b316b8-lbconsultoriadigitals-projects.vercel.app",
+    "FITNUTRI_DISPATCH_MODE": "manual",
+    "FITNUTRI_EXAM_BUCKET": "fitnutri-exames",
+    "FITNUTRI_MAX_PDF_BYTES": "4000000",
+    "FITNUTRI_MAX_EXAM_FILES": "10",
+    "FITNUTRI_MAX_EXAM_TEXT": "60000",
+    "SUPABASE_URL": "https://awpuljvcikhehxvrxyvx.supabase.co",
+    "DEEPSEEK_BASE_URL": "https://api.deepseek.com/v1",
+    "DEEPSEEK_MODEL_FLASH": "deepseek-chat",
+    "DEEPSEEK_MODEL_PRO": "deepseek-reasoner",
+    "DEEPSEEK_TIMEOUT_SECONDS": "180"
+  },
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{tests/**,__tests__/**,pacientes/**,logs/**,FitNutri.app/**,Parar FitNutri.app/**,Remover FitNutri.app/**}"
     }
+  },
+  "rewrites": [
+    { "source": "/api", "destination": "/api/index.py" },
+    { "source": "/api/:path*", "destination": "/api/index.py" }
   ],
-  "routes": [
+  "headers": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/fitnutri_web/static/$1"
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self' https://awpuljvcikhehxvrxyvx.supabase.co; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" }
+      ]
     }
   ]
 }

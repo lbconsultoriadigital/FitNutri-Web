@@ -1,162 +1,208 @@
 """
-FitNutri Local - Agente 1: Triagem & Anamnese
-Coleta dados completos do paciente através de perguntas estruturadas.
-Modelo: DeepSeek V4 Flash
+FitNutri - Agente 1: Triagem & Anamnese.
+
+A triagem é determinística: os dados já chegam estruturados e validados pela
+API. Não há motivo para depender de uma resposta de LLM para apenas copiar os
+campos do formulário para o contexto clínico.
 """
 
-import json
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 from ..models.schemas import (
-    ContextoPipeline, Anamnese, DadosPessoais, HistoricoSaude,
-    HabitosVida, ExamesLaboratoriais, TreinoAtual,
-    ObjetivoEnum, SexoEnum, NivelTreinoEnum, LocalTreinoEnum,
+    Anamnese,
+    ContextoPipeline,
+    DadosPessoais,
+    ExamesLaboratoriais,
+    HabitosVida,
+    HistoricoSaude,
+    LocalTreinoEnum,
+    NivelTreinoEnum,
+    ObjetivoEnum,
+    SexoEnum,
+    TreinoAtual,
 )
 from .base import AgenteBase
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Você é o Agente de Triagem da Clínica FitNutri.
-Sua função é realizar uma anamnese completa e estruturada.
-
-Com base nos dados fornecidos pelo paciente, organize TODAS as informações nos campos solicitados.
-
-Dados a coletar/organizar:
-- Dados pessoais (nome, idade, peso, altura, sexo, profissão)
-- IMC (calcule automaticamente: peso / altura²)
-- Objetivo principal (emagrecimento, hipertrofia, performance, recomposicao_corporal, saude_bem_estar, outro)
-- Descrição detalhada do objetivo
-- Histórico de saúde (doenças crônicas, cirurgias, medicamentos, alergias, condições específicas, histórico familiar)
-- Hábitos de vida (sono horas, qualidade do sono, nível de estresse, cafeína diária, água L/dia, álcool, fumante)
-- Exames disponíveis (texto livre com os exames que o paciente possui)
-- Treino atual (frequência semanal, tipo, tempo de prática: iniciante/intermediario/avancado, lesões atuais, limitações, local: academia/casa/ambos)
-- Preferências alimentares
-- Restrições alimentares
-- Suplementos em uso
-
-IMPORTANTE: Responda APENAS com um JSON válido no seguinte formato, sem formatação markdown:
-{
-    "anamnese": {
-        "dados_pessoais": {
-            "nome": "...",
-            "idade": 0,
-            "peso_kg": 0.0,
-            "altura_m": 0.0,
-            "sexo": "masculino" ou "feminino",
-            "profissao": "...",
-            "imc": 0.0,
-            "objetivo": "emagrecimento" | "hipertrofia" | "performance" | "recomposicao_corporal" | "saude_bem_estar" | "outro",
-            "objetivo_descricao": "..."
-        },
-        "historico_saude": {
-            "doencas_cronicas": [],
-            "cirurgias": [],
-            "medicamentos": [],
-            "alergias": [],
-            "condicoes_especificas": [],
-            "historico_familiar": []
-        },
-        "habitos": {
-            "sono_horas": 0,
-            "sono_qualidade": "ruim" | "regular" | "boa" | "otima",
-            "estresse_nivel": "baixo" | "moderado" | "alto",
-            "cafeina_diaria": "...",
-            "agua_litros": 0.0,
-            "alcool": "...",
-            "fumante": false
-        },
-        "exames": {
-            "exames_texto": "...",
-            "data_exames": "..."
-        },
-        "treino": {
-            "frequencia_semanal": 0,
-            "tipo_treino": "...",
-            "tempo_pratica": "iniciante" | "intermediario" | "avancado",
-            "lesoes_atuais": [],
-            "limitacoes": [],
-            "local_treino": "academia" | "casa" | "ambos"
-        },
-        "preferencias_alimentares": [],
-        "restricoes_alimentares": [],
-        "suplementos_atuais": []
-    }
-}
-
-Se algum campo não foi informado, use valor padrão (null para optional, 0 para números, [] para listas, false para booleanos).
-NUNCA invente informações. Use null se não tiver o dado."""
-
 
 class AgenteTriagem(AgenteBase):
-    """Agente responsável pela triagem e coleta de anamnese."""
+    """Transforma o payload validado da API em uma anamnese tipada."""
 
     def __init__(self, llm_client):
+        # Mantemos a assinatura comum dos agentes, embora esta etapa não use LLM.
         super().__init__(llm_client)
         self.nome = "📋 Triagem & Anamnese"
-        self.descricao = "Coleta dados completos do paciente"
-        self.modelo = "flash"
-        self.temperatura = 0.3
-        self.system_prompt = SYSTEM_PROMPT
+        self.descricao = "Organiza os dados estruturados do paciente"
+        self.modelo = "deterministico"
+        self.temperatura = 0.0
+        self.system_prompt = ""
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
-        logger.info(f"▶️ Executando: {self.nome}")
+        logger.info("▶️ Executando: %s", self.nome)
 
-        # Monta o prompt com os dados disponíveis
-        dados_brutos = self._extrair_dados_brutos(contexto)
-        user_message = (
-            "Extraia e mapeie os seguintes dados do paciente para o JSON de anamnese.\n\n"
-            f"DADOS BRUTOS DO PACIENTE:\n{dados_brutos}\n\n"
-            "REGRAS DE MAPEAMENTO:\n"
-            "- objetivo: 'emagrecimento', 'hipertrofia', 'performance', 'recomposicao_corporal', 'saude_bem_estar', 'outro'\n"
-            "- sexo: 'masculino' ou 'feminino'\n"
-            "- nivel: 'iniciante', 'intermediario', 'avancado'\n"
-            "- local_treino: 'academia', 'casa', 'ambos'\n"
-            "- sono_qualidade: 'ruim', 'regular', 'boa', 'otima'\n"
-            "- estresse_nivel: 'baixo', 'moderado', 'alto'\n"
-            "IMPORTANTE: USE OS VALORES REAIS DOS DADOS ACIMA. NÃO USE null. Se um campo não está nos dados, use o default vazio '' ou 0.")
+        entrada = getattr(contexto, "_dados_entrada", None)
+        if not isinstance(entrada, dict):
+            if contexto.paciente:
+                contexto.etapa_atual = "triagem_concluida"
+                return contexto
+            raise ValueError("Dados de entrada da triagem não foram fornecidos")
 
-        # Chama o LLM
-        resposta = self.llm.gerar(
-            system_prompt=self.system_prompt,
-            user_message=user_message,
-            modelo=self.modelo,
-            temperatura=self.temperatura,
-        )
-
-        # Parseia o JSON
-        anamnese = self._parsear_resposta(resposta)
+        anamnese = self._montar_anamnese(entrada)
         contexto.paciente = anamnese
         contexto.etapa_atual = "triagem_concluida"
 
-        logger.info(f"✅ {self.nome} concluído - Paciente: {anamnese.dados_pessoais.nome}")
+        logger.info(
+            "✅ %s concluído - Paciente: %s",
+            self.nome,
+            anamnese.dados_pessoais.nome,
+        )
         return contexto
 
-    def _extrair_dados_brutos(self, contexto: ContextoPipeline) -> str:
-        """Extrai dados disponíveis no contexto ou input inicial."""
-        entrada = getattr(contexto, "_dados_entrada", None)
+    def _montar_anamnese(self, entrada: dict[str, Any]) -> Anamnese:
+        peso = self._float(entrada.get("peso_kg"))
+        altura = self._float(entrada.get("altura_m"))
+        imc = round(peso / (altura ** 2), 2) if peso > 0 and altura > 0 else None
 
-        if entrada:
-            import json as json_mod
-            return json_mod.dumps(entrada, indent=2, ensure_ascii=False)
+        condicoes = self._lista(entrada.get("condicoes"))
+        doencas = self._lista(entrada.get("doencas_cronicas"))
+        doencas = self._deduplicar(doencas or condicoes)
 
-        if contexto.paciente:
-            return json.dumps(contexto.paciente.model_dump(), indent=2, ensure_ascii=False)
+        condicoes_especificas = self._deduplicar(condicoes)
+        observacoes = str(entrada.get("obs") or "").strip()
+        if observacoes:
+            condicoes_especificas.append(f"Observações adicionais: {observacoes}")
 
-        # Se não tem paciente ainda, são dados vindos do input inicial
-        return "Paciente novo - organizar dados a partir do input fornecido."
+        exames_texto = str(entrada.get("exames_texto") or "").strip()
+        exames = ExamesLaboratoriais(
+            exames_texto=exames_texto or None,
+            data_exames=self._texto_ou_none(entrada.get("data_exames")),
+        )
 
-    def _parsear_resposta(self, resposta: str) -> Anamnese:
-        """Parseia a resposta JSON do LLM para o modelo Anamnese."""
-        # Remove possíveis marcadores markdown
-        resposta = resposta.strip()
-        if resposta.startswith("```json"):
-            resposta = resposta[7:]
-        if resposta.startswith("```"):
-            resposta = resposta[3:]
-        if resposta.endswith("```"):
-            resposta = resposta[:-3]
+        return Anamnese(
+            dados_pessoais=DadosPessoais(
+                nome=str(entrada.get("nome") or "").strip(),
+                idade=self._int(entrada.get("idade")),
+                peso_kg=peso,
+                altura_m=altura,
+                sexo=self._enum(
+                    SexoEnum,
+                    entrada.get("sexo"),
+                    SexoEnum.MASCULINO,
+                ),
+                profissao=str(entrada.get("profissao") or "").strip(),
+                imc=imc,
+                objetivo=self._enum(
+                    ObjetivoEnum,
+                    entrada.get("objetivo"),
+                    ObjetivoEnum.SAUDE,
+                ),
+                objetivo_descricao=str(
+                    entrada.get("objetivo_descricao") or ""
+                ).strip(),
+            ),
+            historico_saude=HistoricoSaude(
+                doencas_cronicas=doencas,
+                cirurgias=self._lista(entrada.get("cirurgias")),
+                medicamentos=self._lista(entrada.get("medicamentos")),
+                alergias=self._lista(entrada.get("alergias")),
+                condicoes_especificas=condicoes_especificas,
+                historico_familiar=self._lista(
+                    entrada.get("historico_familiar")
+                ),
+            ),
+            habitos=HabitosVida(
+                sono_horas=self._float(entrada.get("sono_horas")),
+                sono_qualidade=str(
+                    entrada.get("sono_qualidade") or "regular"
+                ).strip(),
+                estresse_nivel=str(
+                    entrada.get("estresse_nivel") or "moderado"
+                ).strip(),
+                cafeina_diaria=str(
+                    entrada.get("cafeina_diaria") or ""
+                ).strip(),
+                agua_litros=self._float(entrada.get("agua_litros")),
+                alcool=str(entrada.get("alcool") or "nao").strip(),
+                fumante=bool(entrada.get("fumante", False)),
+            ),
+            exames=exames,
+            treino=TreinoAtual(
+                frequencia_semanal=self._int(
+                    entrada.get("frequencia_treino")
+                ),
+                tipo_treino=str(
+                    entrada.get("tipo_treino") or ""
+                ).strip(),
+                tempo_pratica=self._enum(
+                    NivelTreinoEnum,
+                    entrada.get("nivel_treino"),
+                    NivelTreinoEnum.INICIANTE,
+                ),
+                lesoes_atuais=self._lista(entrada.get("lesoes")),
+                limitacoes=self._lista(entrada.get("limitacoes")),
+                local_treino=self._enum(
+                    LocalTreinoEnum,
+                    entrada.get("local_treino"),
+                    LocalTreinoEnum.ACADEMIA,
+                ),
+            ),
+            preferencias_alimentares=self._lista(
+                entrada.get("preferencias_alimentares")
+            ),
+            restricoes_alimentares=self._lista(
+                entrada.get("restricoes_alimentares")
+            ),
+            suplementos_atuais=self._lista(
+                entrada.get("suplementos_atuais")
+            ),
+        )
 
-        resposta = resposta.strip()
-        dados = json.loads(resposta)
+    @staticmethod
+    def _lista(value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            items = value.split(",")
+        elif isinstance(value, (list, tuple, set)):
+            items = value
+        else:
+            items = [value]
+        return [
+            str(item).strip()
+            for item in items
+            if str(item).strip()
+        ]
 
-        anamnese_data = dados.get("anamnese", dados)
-        return Anamnese(**anamnese_data)
+    @staticmethod
+    def _deduplicar(items: list[str]) -> list[str]:
+        return list(dict.fromkeys(items))
+
+    @staticmethod
+    def _float(value: Any) -> float:
+        try:
+            return float(value or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _int(value: Any) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _texto_ou_none(value: Any) -> str | None:
+        text = str(value or "").strip()
+        return text or None
+
+    @staticmethod
+    def _enum(enum_class, value: Any, default):
+        try:
+            return enum_class(value)
+        except (TypeError, ValueError):
+            return default

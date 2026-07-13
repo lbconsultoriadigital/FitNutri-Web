@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#121716">
+  <title>FitNutri — Nutrição. Performance. Evolução.</title>
+  <link rel="stylesheet" href="/base.css?v=3">
+  <link rel="stylesheet" href="/forms.css?v=3">
+  <link rel="stylesheet" href="/dashboard.css?v=3">
+</head>
+<body>
+  <section id="loginPanel" class="login">
+    <form id="loginForm" class="login-card">
+      <div class="login-logo">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="27" height="27" viewBox="0 0 28 28" fill="none"><path d="M5 22V7h8.2l4.1 4.1V6H23v16h-5.7l-6.6-6.7V22H5Z" fill="#121716"/><path d="M11 6h7l5 5" stroke="#0B4F3C" stroke-width="2.3" stroke-linecap="round"/></svg>
+        </div>
+        <div><div class="brand-name">Fit<span>Nutri</span></div><div class="brand-sub">Performance intelligence</div></div>
+      </div>
+      <div class="eyebrow">Área profissional</div>
+      <h2>Entre na plataforma</h2>
+      <p>Acesso interno ao protótipo com seis agentes especializados e revisão humana obrigatória.</p>
+      <label for="password">Senha administrativa</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn btn-lime" type="submit" style="width:100%;margin-top:14px">Acessar FitNutri</button>
+      <div id="loginError" class="login-error"></div>
+    </form>
+  </section>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><svg width="27" height="27" viewBox="0 0 28 28" fill="none"><path d="M5 22V7h8.2l4.1 4.1V6H23v16h-5.7l-6.6-6.7V22H5Z" fill="#121716"/><path d="M11 6h7l5 5" stroke="#0B4F3C" stroke-width="2.3" stroke-linecap="round"/></svg></div>
+        <div class="brand-copy"><div class="brand-name">Fit<span>Nutri</span></div><div class="brand-sub">Performance intelligence</div></div>
+      </div>
+      <nav class="nav">
+        <button class="active" type="button"><i class="nav-dot"></i><span>Operação clínica</span></button>
+        <button type="button"><i class="nav-dot" style="background:#58625e"></i><span>Pacientes</span></button>
+        <button type="button"><i class="nav-dot" style="background:#58625e"></i><span>Relatórios</span></button>
+      </nav>
+      <div class="side-foot"><strong>Protótipo funcional</strong><br>Nutrição, dados e alta performance em um único fluxo.</div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div><div class="eyebrow">Dashboard clínico</div><h1 class="page-title">Central de atendimentos</h1></div>
+        <div class="top-actions"><div id="health" class="health"><span class="health-dot"></span><span>Verificando sistema</span></div><button id="refresh" class="icon-btn" type="button">Atualizar</button><button id="logout" class="icon-btn" type="button">Sair</button></div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div><div class="hero-kicker">Nutrição. Performance. Evolução.</div><h2>Decisões melhores, evolução mensurável.</h2><p>Centralize anamnese, exames em PDF, análises dos agentes, estratégia nutricional, treino e aprovação profissional.</p></div>
+          <button id="newAttendanceHero" class="btn btn-lime" type="button">Novo atendimento</button>
+        </section>
+
+        <section class="metrics">
+          <article class="metric"><div class="metric-label">Total de atendimentos</div><div id="metricTotal" class="metric-value">0</div><div class="metric-accent"></div></article>
+          <article class="metric"><div class="metric-label">Em processamento</div><div id="metricRunning" class="metric-value">0</div><div class="metric-accent"></div></article>
+          <article class="metric"><div class="metric-label">Aguardando revisão</div><div id="metricReview" class="metric-value">0</div><div class="metric-accent"></div></article>
+          <article class="metric"><div class="metric-label">Aprovados</div><div id="metricApproved" class="metric-value">0</div><div class="metric-accent"></div></article>
+        </section>
+
+        <section class="layout">
+          <div class="stack">
+            <article class="card">
+              <div class="card-head"><div><div class="eyebrow">Novo caso</div><h3>Iniciar atendimento</h3></div><span class="badge">6 agentes</span></div>
+              <div class="card-body">
+                <form id="attendanceForm">
+                  <div class="section-label">Dados essenciais</div>
+                  <div class="field-grid">
+                    <div class="field full"><label for="nome">Nome do paciente</label><input id="nome" required maxlength="160" placeholder="Paciente fictício"></div>
+                    <div class="field"><label for="idade">Idade</label><input id="idade" type="number" min="0" max="150" required></div>
+                    <div class="field"><label for="sexo">Sexo</label><select id="sexo"><option value="masculino">Masculino</option><option value="feminino">Feminino</option></select></div>
+                    <div class="field"><label for="peso">Peso (kg)</label><input id="peso" type="number" step="0.1" min="1" required></div>
+                    <div class="field"><label for="altura">Altura (m)</label><input id="altura" type="number" step="0.01" min="0.5" max="3" required></div>
+                    <div class="field full"><label for="profissao">Profissão</label><input id="profissao" maxlength="160"></div>
+                    <div class="field full"><label for="objetivo">Objetivo principal</label><select id="objetivo"><option value="emagrecimento">Emagrecimento</option><option value="hipertrofia">Hipertrofia</option><option value="performance">Performance esportiva</option><option value="recomposicao_corporal">Recomposição corporal</option><option value="saude_bem_estar">Saúde e bem-estar</option><option value="outro">Outro</option></select></div>
+                    <div class="field full"><label for="descricao">Meta e contexto</label><textarea id="descricao" maxlength="3000" placeholder="Descreva o objetivo, prazo e contexto..."></textarea></div>
+                  </div>
+
+                  <details class="form-section" open><summary>Saúde e histórico</summary><div class="details-body"><div class="field-grid">
+                    <div class="field full"><label for="condicoes">Condições gerais</label><textarea id="condicoes" placeholder="Separadas por vírgula"></textarea></div>
+                    <div class="field full"><label for="medicamentos">Medicamentos</label><textarea id="medicamentos" placeholder="Separados por vírgula"></textarea></div>
+                    <div class="field"><label for="alergias">Alergias</label><textarea id="alergias"></textarea></div>
+                    <div class="field"><label for="cirurgias">Cirurgias</label><textarea id="cirurgias"></textarea></div>
+                    <div class="field full"><label for="historicoFamiliar">Histórico familiar</label><textarea id="historicoFamiliar"></textarea></div>
+                  </div></div></details>
+
+                  <details class="form-section"><summary>Hábitos, alimentação e treino</summary><div class="details-body"><div class="field-grid">
+                    <div class="field"><label for="sono">Sono (horas)</label><input id="sono" type="number" step="0.5" min="0" max="24"></div>
+                    <div class="field"><label for="agua">Água (litros/dia)</label><input id="agua" type="number" step="0.1" min="0" max="20"></div>
+                    <div class="field"><label for="estresse">Estresse</label><select id="estresse"><option>baixo</option><option selected>moderado</option><option>alto</option><option>muito alto</option></select></div>
+                    <div class="field"><label for="frequenciaTreino">Treinos/semana</label><input id="frequenciaTreino" type="number" min="0" max="14"></div>
+                    <div class="field full"><label for="tipoTreino">Modalidade e rotina</label><input id="tipoTreino" placeholder="Musculação, corrida, bodybuilding..."></div>
+                    <div class="field"><label for="nivelTreino">Nível</label><select id="nivelTreino"><option value="iniciante">Iniciante</option><option value="intermediario">Intermediário</option><option value="avancado">Avançado</option></select></div>
+                    <div class="field"><label for="localTreino">Local</label><select id="localTreino"><option value="academia">Academia</option><option value="casa">Casa</option><option value="ambos">Ambos</option></select></div>
+                    <div class="field full"><label for="restricoes">Restrições alimentares</label><textarea id="restricoes"></textarea></div>
+                    <div class="field full"><label for="suplementos">Suplementos atuais</label><textarea id="suplementos"></textarea></div>
+                  </div></div></details>
+
+                  <div class="section-label">Exames laboratoriais</div>
+                  <div id="dropzone" class="dropzone">
+                    <input id="examPdf" type="file" accept="application/pdf,.pdf">
+                    <div class="drop-icon">PDF</div><strong>Anexe os exames laboratoriais</strong><div class="small-note">Arraste ou selecione um PDF com até 4 MB. O arquivo ficará privado no Supabase.</div>
+                  </div>
+                  <div id="fileChip" class="file-chip hidden"><div style="min-width:0"><strong id="fileName"></strong><span id="fileSize"></span></div><button id="removeFile" class="icon-btn" type="button">Remover</button></div>
+                  <label for="exames" style="margin-top:11px">Complemento manual dos exames</label><textarea id="exames" maxlength="60000" placeholder="Cole valores, referências ou observações que não estejam no PDF."></textarea>
+                  <label for="obs" style="margin-top:11px">Observações adicionais</label><textarea id="obs" maxlength="15000"></textarea>
+
+                  <div class="submit-row"><button id="submitAttendance" class="btn btn-primary" type="submit">Criar e executar agentes</button><button class="btn btn-soft" type="reset">Limpar</button></div>
+                  <p class="privacy">O protótipo mantém o laudo como rascunho até aprovação de um profissional habilitado.</p>
+                </form>
+              </div>
+            </article>
+
+            <article class="card">
+              <div class="card-head"><div><div class="eyebrow">Histórico</div><h3>Atendimentos recentes</h3></div><span id="jobCount" class="badge">0</span></div>
+              <div class="card-body"><div id="jobs" class="jobs-list"><div class="empty">Nenhum atendimento criado.</div></div></div>
+            </article>
+          </div>
+
+          <article id="detailCard" class="card detail">
+            <div id="detailEmpty" class="detail-empty"><div class="empty"><strong>Selecione um atendimento</strong>Acompanhe cada agente, abra o PDF e revise o laudo final.</div></div>
+            <div id="detailContent" class="hidden">
+              <div class="detail-hero">
+                <div class="detail-title-row"><div><div class="hero-kicker">Atendimento inteligente</div><h2 id="detailName"></h2><div id="detailMeta" class="detail-meta"></div></div><span id="detailStatus" class="badge"></span></div>
+                <div class="overall-progress"><span id="detailProgress"></span></div><div class="progress-caption"><span id="progressText">Etapa 0 de 6</span><span id="processingMode"></span></div>
+              </div>
+              <div id="agentGrid" class="agent-grid"></div>
+              <div class="detail-actions"><button id="runNext" class="btn btn-soft" type="button">Executar próxima etapa</button><button id="runAll" class="btn btn-lime" type="button">Executar todos os agentes</button><button id="openPdfTop" class="btn btn-soft hidden" type="button">Abrir PDF</button></div>
+              <div class="tabs"><button class="tab active" data-tab="overview" type="button">Visão geral</button><button class="tab" data-tab="outputs" type="button">Saídas dos agentes</button><button class="tab" data-tab="report" type="button">Laudo</button><button class="tab" data-tab="pdf" type="button">Exame PDF</button></div>
+              <div id="panelOverview" class="panel"></div><div id="panelOutputs" class="panel hidden"></div><div id="panelReport" class="panel hidden"></div><div id="panelPdf" class="panel hidden"></div>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="flash" class="flash hidden"></div>
+  <div id="processingOverlay" class="processing-overlay hidden"><div class="processing-box"><div class="spinner"></div><div class="eyebrow">Pipeline em execução</div><h3 id="processingTitle">Executando agentes</h3><p id="processingText" class="small-note">Aguarde a conclusão da etapa atual.</p><div class="overall-progress" style="background:#e6eae6"><span id="processingProgress"></span></div></div></div>
+
+  <script src="/app-core.js?v=3" defer></script>
+  <script src="/app-form.js?v=3" defer></script>
+  <script src="/app-list.js?v=3" defer></script>
+  <script src="/app-render.js?v=3" defer></script>
+  <script src="/app-run.js?v=3" defer></script>
+</body>
+</html>

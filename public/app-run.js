@@ -1,0 +1,8 @@
+$('runNext').onclick=async()=>{if(!state.selectedId||state.processing)return;await runNextAgent(state.selectedId)};
+$('runAll').onclick=async()=>{if(!state.selectedId||state.processing)return;await runAllAgents(state.selectedId)};
+async function runNextAgent(id){state.processing=true;showProcessing(state.currentJob?.current_stage||0);try{const updated=await api(`/api/atendimentos/${encodeURIComponent(id)}/advance`,{method:'POST',body:'{}'});state.currentJob=updated;renderDetail(updated);return updated}catch(err){notify(err.message);await loadDetail(id,false);throw err}finally{state.processing=false;hideProcessing()}}
+async function runAllAgents(id){if(state.processing)return;state.processing=true;let job=await loadDetail(id,false);try{while(job&&job.current_stage<6&&!['review_required','approved'].includes(job.status)){showProcessing(job.current_stage);job=await api(`/api/atendimentos/${encodeURIComponent(id)}/advance`,{method:'POST',body:'{}'});state.currentJob=job;renderDetail(job);await loadJobs(false)}if(job?.status==='review_required'){notify('Pipeline concluído. Laudo disponível para revisão.');selectTab('report')}}catch(err){notify(err.message);await loadDetail(id,false)}finally{state.processing=false;hideProcessing();await loadJobs(false)}}
+function showProcessing(current){const next=Math.min(current+1,6);$('processingOverlay').classList.remove('hidden');$('processingTitle').textContent=`Executando ${STAGES[next-1]?.label||'pipeline'}`;$('processingText').textContent=STAGES[next-1]?.detail||'Processando dados do atendimento.';$('processingProgress').style.width=`${Math.round(current/6*100)}%`}
+function hideProcessing(){$('processingOverlay').classList.add('hidden')}
+
+checkSession().catch(err=>{$('loginError').textContent=err.message});
