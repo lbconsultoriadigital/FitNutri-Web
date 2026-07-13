@@ -9,8 +9,13 @@ import logging
 from datetime import datetime
 from ..models.schemas import ContextoPipeline, LaudoFinal
 from .base import AgenteBase
+from ..validation.validator import ValidadorFitNutri, AlertaSeveridade, SistemaEscalacao
+from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
+validador = ValidadorFitNutri()
+escalacao = SistemaEscalacao()
+prompt_enhancer = get_prompt_enhancer()
 
 SYSTEM_PROMPT = """Você é o Orquestrador Clínico Master da Clínica FitNutri.
 Sua função é CONSOLIDAR todo o trabalho dos especialistas em um laudo final completo, profissional e acolhedor.
@@ -34,6 +39,21 @@ Com tudo isso, gere o laudo final com:
 8. **PRÓXIMOS PASSOS** - Ações que o paciente deve tomar
 
 TOM: Profissional, acolhedor, técnico mas acessível. Linguagem clara.
+
+LÓGICA DE ESCALAÇÃO CRÍTICA:
+1. Se qualquer etapa (triagem/exames/suplementação/nutrição/treino) reportar RED FLAG:
+   - PAUSAR a geração do laudo automaticamente
+   - REQUER VALIDAÇÃO PROFISSIONAL antes de prosseguir
+   - NÃO marcar como "aprovado" até revisão
+
+2. Se múltiplas RED FLAGS AMARELAS:
+   - Gerar laudo marcado como "REQUER VALIDAÇÃO URGENTE"
+   - Destacar TODOS os alertas no topo do laudo
+
+3. Se RED FLAG VERMELHA ou PRETA (emergência):
+   - CANCELAR laudo completamente
+   - Encaminhar IMEDIATAMENTE para Felipe Leone / Dr. Henrique
+   - Incluir mensagem explícita: "CASO REQUER ATENDIMENTO MÉDICO PRESENCIAL URGENTE"
 
 IMPORTANTE: Responda APENAS com um JSON válido no formato:
 {
@@ -60,13 +80,27 @@ class AgenteOrquestrador(AgenteBase):
         self.descricao = "Consolida o laudo multidisciplinar completo"
         self.modelo = "pro"
         self.temperatura = 0.3
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_orquestrador(SYSTEM_PROMPT)
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
 
         if not contexto.paciente:
             raise ValueError("Paciente não definido. Execute a triagem primeiro.")
+
+        # CRÍTICO: Verificar escalações ANTES de gerar o laudo
+        necessita_escalacao, severidade = self._verificar_escalacoes(contexto)
+        
+        if necessita_escalacao and severidade in (AlertaSeveridade.VERMELHO, AlertaSeveridade.PRETO):
+            logger.error(f"🚨 ESCALAÇÃO CRÍTICA DETECTADA - Severidade: {severidade.value}")
+            logger.error("LAUDO CANCELADO - Encaminhar para atendimento médico presencial urgente")
+            
+            contexto.escalacao_necessaria = True
+            contexto.severidade_escalacao = severidade.value
+            contexto.etapa_atual = "escalacao_critica"
+            
+            # Não gera laudo, apenas registra a escalação
+            return contexto
 
         user_message = self._montar_prompt_consolidacao(contexto)
 
@@ -93,6 +127,10 @@ class AgenteOrquestrador(AgenteBase):
             proximos_passos=laudo_data.get("proximos_passos", []),
         )
 
+        # Se houver RED FLAGS AMARELAS, marcar como requer validação
+        if contexto.alertas_validacao:
+            laudo.recomendacoes_gerais.insert(0, f"⚠️ LAUDO REQUER VALIDAÇÃO PROFISSIONAL - {len(contexto.alertas_validacao)} alerta(s) detectado(s)")
+
         # Armazena o laudo no contexto para o generator usar
         contexto.etapa_atual = "laudo_consolidado"
 
@@ -101,6 +139,33 @@ class AgenteOrquestrador(AgenteBase):
         # Retorna o contexto E o laudo como atributo extra
         contexto.laudo_final = laudo  # type: ignore
         return contexto
+    
+    def _verificar_escalacoes(self, contexto: ContextoPipeline) -> tuple:
+        """Verifica se há RED FLAGS que requerem escalação ANTES de gerar laudo."""
+        logger.info("🔍 Verificando RED FLAGS acumuladas...")
+        
+        if not contexto.alertas_validacao:
+            logger.info("✓ Nenhuma RED FLAG detectada")
+            return False, AlertaSeveridade.VERDE
+        
+        # Determinar severidade máxima
+        severidade_max = AlertaSeveridade.VERDE
+        
+        for alerta in contexto.alertas_validacao:
+            if "EMERGÊNCIA" in alerta or "🚨" in alerta or "PRETO" in alerta:
+                severidade_max = AlertaSeveridade.PRETO
+                break
+            elif "RED FLAG" in alerta or "🔴" in alerta or "VERMELHO" in alerta or "CRÍTICO" in alerta:
+                severidade_max = AlertaSeveridade.VERMELHO
+            elif "⚠️" in alerta and severidade_max != AlertaSeveridade.VERMELHO:
+                severidade_max = AlertaSeveridade.AMARELO
+        
+        logger.warning(f"⚠️ {len(contexto.alertas_validacao)} alerta(s) detectado(s)")
+        for i, alerta in enumerate(contexto.alertas_validacao, 1):
+            logger.warning(f"   {i}. {alerta[:100]}...")
+        
+        necessita_escalacao = severidade_max != AlertaSeveridade.VERDE
+        return necessita_escalacao, severidade_max
 
     def _montar_prompt_consolidacao(self, contexto: ContextoPipeline) -> str:
         partes = ["## CONTEXTO COMPLETO DO PACIENTE PARA CONSOLIDAÇÃO DO LAUDO FINAL\n"]

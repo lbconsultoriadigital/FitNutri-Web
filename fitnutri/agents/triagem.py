@@ -12,8 +12,12 @@ from ..models.schemas import (
     ObjetivoEnum, SexoEnum, NivelTreinoEnum, LocalTreinoEnum,
 )
 from .base import AgenteBase
+from ..validation.validator import ValidadorFitNutri, AlertaSeveridade
+from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
+validador = ValidadorFitNutri()
+prompt_enhancer = get_prompt_enhancer()
 
 SYSTEM_PROMPT = """Você é o Agente de Triagem da Clínica FitNutri.
 Sua função é realizar uma anamnese completa e estruturada.
@@ -82,6 +86,15 @@ IMPORTANTE: Responda APENAS com um JSON válido no seguinte formato, sem formata
     }
 }
 
+VALIDAÇÕES OBRIGATÓRIAS ANTES DE FINALIZAR:
+1. Peso: {1-300} kg
+2. Altura: {0.5-2.5} m
+3. IMC coerente: peso / altura²
+4. Idade: {14-120} anos
+5. Se detectar sintomas graves (dor no peito, falta de ar, etc):
+   - MARQUE COMO RED FLAG 🔴
+   - NÃO continuar para próxima etapa
+
 Se algum campo não foi informado, use valor padrão (null para optional, 0 para números, [] para listas, false para booleanos).
 NUNCA invente informações. Use null se não tiver o dado."""
 
@@ -95,7 +108,7 @@ class AgenteTriagem(AgenteBase):
         self.descricao = "Coleta dados completos do paciente"
         self.modelo = "flash"
         self.temperatura = 0.3
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_triagem(SYSTEM_PROMPT)
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
@@ -125,10 +138,62 @@ class AgenteTriagem(AgenteBase):
         # Parseia o JSON
         anamnese = self._parsear_resposta(resposta)
         contexto.paciente = anamnese
+        
+        # OPÇÃO A: Validação Minimal
+        self._validar_anamnese(anamnese, contexto)
+        
         contexto.etapa_atual = "triagem_concluida"
 
         logger.info(f"✅ {self.nome} concluído - Paciente: {anamnese.dados_pessoais.nome}")
         return contexto
+    
+    def _validar_anamnese(self, anamnese: Anamnese, contexto: ContextoPipeline) -> None:
+        """Valida dados da anamnese e detecta red flags."""
+        dados_pessoais = anamnese.dados_pessoais
+        habitos = anamnese.habitos
+        
+        logger.info("🔍 Validando dados da triagem...")
+        
+        # Validar dados pessoais
+        valido_pessoais, erros_pessoais = validador.validar_dados_pessoais({
+            "peso_kg": dados_pessoais.peso_kg,
+            "altura_m": dados_pessoais.altura_m,
+            "imc": dados_pessoais.imc,
+            "idade": dados_pessoais.idade
+        })
+        
+        if not valido_pessoais:
+            for erro in erros_pessoais:
+                logger.warning(f"⚠️ Erro em dados pessoais: {erro}")
+                contexto.alertas_validacao = contexto.alertas_validacao or []
+                contexto.alertas_validacao.append(erro)
+        
+        # Validar hábitos de vida
+        valido_habitos, erros_habitos, avisos_habitos = validador.validar_habitos_vida({
+            "sono_horas": habitos.sono_horas,
+            "agua_litros": habitos.agua_litros,
+            "cafeina_diaria": habitos.cafeina_diaria,
+            "fumante": habitos.fumante
+        })
+        
+        if avisos_habitos:
+            for aviso in avisos_habitos:
+                logger.warning(f"⚠️ Aviso em hábitos: {aviso}")
+                contexto.alertas_validacao = contexto.alertas_validacao or []
+                contexto.alertas_validacao.append(aviso)
+        
+        # Detecção de red flags em texto (lesões, sintomas graves)
+        lesoes_texto = " ".join(anamnese.treino.lesoes_atuais or [])
+        sintomas_flags = validador.validar_relatos_sintomas(lesoes_texto)
+        
+        if sintomas_flags:
+            logger.error(f"🚨 RED FLAG detectada na triagem!")
+            for flag in sintomas_flags:
+                logger.error(f"   - {flag['palavra_chave']}: {flag['recomendacao']}")
+                contexto.alertas_validacao = contexto.alertas_validacao or []
+                contexto.alertas_validacao.append(flag['recomendacao'])
+                contexto.escalacao_necessaria = True
+                contexto.severidade_escalacao = AlertaSeveridade.PRETO
 
     def _extrair_dados_brutos(self, contexto: ContextoPipeline) -> str:
         """Extrai dados disponíveis no contexto ou input inicial."""

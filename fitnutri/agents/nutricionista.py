@@ -8,8 +8,12 @@ import json
 import logging
 from ..models.schemas import ContextoPipeline, PlanoAlimentar, Refeicao
 from .base import AgenteBase
+from ..validation.validator import ValidadorFitNutri, AlertaSeveridade
+from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
+validador = ValidadorFitNutri()
+prompt_enhancer = get_prompt_enhancer()
 
 SYSTEM_PROMPT = """Você é Felipe Leone, nutricionista clínico e esportivo da Clínica FitNutri.
 Crie planos alimentares PERSONALIZADOS, saborosos e baseados em evidências.
@@ -44,6 +48,24 @@ ABORDAGEM ANTI-DIETA (tendência 2026):
 - Estabilidade glicêmica: combinar proteína + fibra + gordura boa
 - GLP-1 natural: banana verde, aveia, leguminosas
 
+DIRETRIZES DE SEGURANÇA CRÍTICAS:
+1. NUNCA prescrever <1200 kcal (mulheres) ou <1500 kcal (homens)
+   - Se objetivo de emagrecimento resultar em <1200/1500: MARQUE COMO RED FLAG
+   - Sugerir aumento de déficit apenas com acompanhamento profissional
+
+2. Verificar ALERGIAS E RESTRIÇÕES ANTES de montar cardápio
+   - Se alergênico presente no plano: ERRO CRÍTICO 🔴
+
+3. VALIDAR macronutrientes:
+   - Proteína <1.6g/kg com objetivo hipertrofia: WARNING
+   - Gordura <20% do VET: RED FLAG (saúde hormonal)
+
+4. Se paciente com diabetes, síndrome metabólica ou pré-diabetes:
+   - Priorizar índice glicêmico baixo
+   - Combinar todos os carboidratos com proteína/fibra
+
+5. Sempre finalizar com disclaimer e data de reavaliação (30 dias)
+
 IMPORTANTE: Responda APENAS com um JSON válido no formato:
 {
     "plano_alimentar": {
@@ -77,7 +99,7 @@ class AgenteNutricionista(AgenteBase):
         self.descricao = "Cria planos alimentares personalizados"
         self.modelo = "flash"
         self.temperatura = 0.4
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_nutricionista(SYSTEM_PROMPT)
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
@@ -96,10 +118,66 @@ class AgenteNutricionista(AgenteBase):
 
         plano = self._parsear_resposta(resposta)
         contexto.plano_alimentar = plano
+        
+        # OPÇÃO A: Validação Minimal
+        self._validar_plano_alimentar(plano, contexto)
+        
         contexto.etapa_atual = "nutricao_concluido"
 
         logger.info(f"✅ {self.nome} concluído - GET: {plano.get_kcal:.0f} kcal")
         return contexto
+    
+    def _validar_plano_alimentar(self, plano: PlanoAlimentar, contexto: ContextoPipeline) -> None:
+        """Valida plano alimentar contra regras de segurança."""
+        logger.info("🔍 Validando plano alimentar...")
+        
+        paciente = contexto.paciente
+        sexo = paciente.dados_pessoais.sexo.lower()
+        
+        # RED FLAGS: Calorias muito baixas
+        min_kcal = 1200 if "feminino" in sexo else 1500
+        if plano.ajuste_kcal < min_kcal:
+            msg = f"RED FLAG: Ingestão calórica {plano.ajuste_kcal:.0f} kcal < mínimo recomendado ({min_kcal} kcal)"
+            logger.error(f"🔴 {msg}")
+            contexto.alertas_validacao.append(msg)
+            contexto.escalacao_necessaria = True
+            contexto.severidade_escalacao = AlertaSeveridade.VERMELHO.value
+        
+        # WARNING: Proteína baixa para hipertrofia
+        proteina_por_kg = plano.proteinas_g / paciente.dados_pessoais.peso_kg
+        objetivo = paciente.dados_pessoais.objetivo.value.lower()
+        
+        if "hipertrofia" in objetivo and proteina_por_kg < 1.6:
+            msg = f"⚠️ Proteína baixa para hipertrofia: {proteina_por_kg:.2f}g/kg (recomendado 1.6-2.4g/kg)"
+            logger.warning(msg)
+            contexto.alertas_validacao.append(msg)
+        
+        # WARNING: Gordura muito baixa
+        gordura_percent = (plano.gorduras_g * 9) / plano.ajuste_kcal * 100 if plano.ajuste_kcal > 0 else 0
+        if gordura_percent < 20:
+            msg = f"⚠️ Ingestão de gordura baixa: {gordura_percent:.1f}% (mínimo 20-30% para saúde hormonal)"
+            logger.warning(msg)
+            contexto.alertas_validacao.append(msg)
+        
+        # WARNING: Fibra baixa
+        if plano.fibras_g < 25:
+            msg = f"⚠️ Fibras abaixo do recomendado: {plano.fibras_g:.0f}g (mínimo 25-30g/dia)"
+            logger.warning(msg)
+            contexto.alertas_validacao.append(msg)
+        
+        # Validar restrições alimentares
+        restricoes = paciente.restricoes_alimentares or []
+        if restricoes:
+            logger.info(f"📋 Verificando {len(restricoes)} restrições alimentares...")
+            for refeicao in plano.refeicoes:
+                for alimento in refeicao.alimentos:
+                    for restricao in restricoes:
+                        if restricao.lower() in alimento.lower():
+                            msg = f"ERRO: Alimento contraindicado '{alimento}' na refeição '{refeicao.nome}' (paciente alérgico a '{restricao}')"
+                            logger.error(f"🔴 {msg}")
+                            contexto.alertas_validacao.append(msg)
+                            contexto.escalacao_necessaria = True
+                            contexto.severidade_escalacao = AlertaSeveridade.VERMELHO.value
 
     def _montar_prompt_nutricao(self, contexto: ContextoPipeline) -> str:
         p = contexto.paciente

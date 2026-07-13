@@ -9,8 +9,13 @@ import re
 import logging
 from ..models.schemas import ContextoPipeline, AnaliseExames, MarcadorExame
 from .base import AgenteBase
+from ..validation.validator import ValidadorFitNutri, AlertaSeveridade, SistemaEscalacao
+from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
+validador = ValidadorFitNutri()
+escalacao = SistemaEscalacao()
+prompt_enhancer = get_prompt_enhancer()
 
 SYSTEM_PROMPT = """Você é o Dr. Henrique Mendonça, especialista em análises clínicas da Clínica FitNutri.
 Sua função é interpretar exames laboratoriais com profundidade clínica.
@@ -54,6 +59,29 @@ IMPORTANTE: Responda APENAS com um JSON válido no seguinte formato:
     }
 }
 
+DIRETRIZES DE SEGURANÇA CRÍTICAS:
+1. RED FLAGS CLÍNICAS OBRIGATÓRIAS - se detectar, MARQUE IMEDIATAMENTE:
+   - Glicemia >250 mg/dL ou <50 mg/dL → EMERGÊNCIA 🔴
+   - Hemoglobina <7 g/dL → EMERGÊNCIA 🔴
+   - Hemoglobina <6 g/dL → EMERGÊNCIA CRÍTICA 🚨
+   - Creatinina >3.0 mg/dL → FALÊNCIA RENAL 🔴
+   - TSH >10 mIU/L → HIPOTIREOIDISMO SEVERO
+   - Pressão Arterial >180/120 mmHg → RISCO DE AVC 🔴
+
+2. Sempre cite as FONTES e DIRETRIZES:
+   - "Segundo as recomendações SBPC/ML 2024..."
+   - "Meta-análise de 2025 mostra que..."
+
+3. NUNCA recomende mudanças de medicação. Quando houver contraindicação:
+   - Marque como RED FLAG
+   - Escalação obrigatória para médico prescritivo
+
+4. Se paciente SEM exames:
+   - Recomende painel específico para o objetivo/idade
+   - Não adivinhe valores
+
+5. Sempre finalizar com disclaimer de responsabilidade profissional
+
 Regras:
 - Se o paciente NÃO forneceu exames, retorne marcadores vazios e explique no parecer que exames são recomendados
 - Seja específico nos valores, não genérico
@@ -70,7 +98,7 @@ class AgenteExames(AgenteBase):
         self.descricao = "Interpreta exames laboratoriais com profundidade clínica"
         self.modelo = "pro"
         self.temperatura = 0.2
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_exames(SYSTEM_PROMPT)
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
@@ -89,11 +117,57 @@ class AgenteExames(AgenteBase):
 
         analise = self._parsear_resposta(resposta)
         contexto.analise_exames = analise
+        
+        # OPÇÃO A: Validação Minimal + RED FLAGS
+        self._validar_exames(analise, contexto)
+        
         contexto.etapa_atual = "exames_concluido"
 
         n_alertas = len(analise.alertas_criticos)
         logger.info(f"✅ {self.nome} concluído - {len(analise.marcadores)} marcadores, {n_alertas} alertas")
         return contexto
+    
+    def _validar_exames(self, analise: AnaliseExames, contexto: ContextoPipeline) -> None:
+        """Valida exames e detecta red flags críticas."""
+        logger.info("🔍 Validando resultados de exames...")
+        
+        # Extrair valores dos marcadores para validação
+        exames_dict = {}
+        for marcador in analise.marcadores:
+            nome_lower = marcador.nome.lower()
+            valor_str = str(marcador.valor).replace(" mg/dL", "").replace(" ng/mL", "").replace(" g/dL", "")
+            try:
+                exames_dict[nome_lower] = float(valor_str)
+            except ValueError:
+                pass
+        
+        # Validar exames contra red flags
+        valido_exames, erros_exames, red_flags = validador.validar_exames(exames_dict)
+        
+        if red_flags:
+            logger.error(f"🚨 RED FLAGS DETECTADAS! Total: {len(red_flags)}")
+            for flag in red_flags:
+                logger.error(f"   🔴 {flag['marcador']}: {flag['recomendacao']}")
+                contexto.alertas_validacao.append(flag['recomendacao'])
+            
+            # Determinar necessidade de escalação
+            necessita_escalacao, severidade, msg = escalacao.avaliar_necessidade_escalacao(
+                {"paciente_nome": contexto.paciente.dados_pessoais.nome},
+                red_flags_exames=red_flags
+            )
+            
+            if necessita_escalacao:
+                logger.error(f"⚠️ ESCALAÇÃO NECESSÁRIA - Severidade: {severidade.value}")
+                contexto.escalacao_necessaria = True
+                contexto.severidade_escalacao = severidade.value
+                contexto.alertas_validacao.append(msg)
+        
+        # Validar alertas já identificados pelo LLM
+        if analise.alertas_criticos:
+            for alerta in analise.alertas_criticos:
+                logger.warning(f"⚠️ Alerta do LLM: {alerta}")
+                if not any(alerta in a for a in contexto.alertas_validacao):
+                    contexto.alertas_validacao.append(alerta)
 
     def _montar_prompt_exames(self, contexto: ContextoPipeline) -> str:
         p = contexto.paciente

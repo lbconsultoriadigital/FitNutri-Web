@@ -191,4 +191,7 @@ class ContextoPipeline(BaseModel):
     laudo_final: Optional[LaudoFinal] = None
     etapa_atual: str = "inicio"
     erros: list[str] = []
+    alertas_validacao: list[str] = []
+    escalacao_necessaria: bool = False
+    severidade_escalacao: Optional[str] = None
     inicio_atendimento: datetime = Field(default_factory=datetime.now)

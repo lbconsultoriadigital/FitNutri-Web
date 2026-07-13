@@ -8,8 +8,12 @@ import json
 import logging
 from ..models.schemas import ContextoPipeline, ProtocoloSuplementacao, ItemSuplemento
 from .base import AgenteBase
+from ..validation.validator import ValidadorFitNutri, AlertaSeveridade
+from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
+validador = ValidadorFitNutri()
+prompt_enhancer = get_prompt_enhancer()
 
 SYSTEM_PROMPT = """Você é a Dra. Carolina Castro, especialista em nutracêutica clínica da Clínica FitNutri.
 Sua função é recomendar suplementação baseada em EVIDÊNCIAS CIENTÍFICAS.
@@ -39,7 +43,14 @@ REGRAS CLÍNICAS OBRIGATÓRIAS (baseadas nas tendências 2026):
 
 7. Verificar INTERAÇÕES MEDICAMENTOSAS com todos os medicamentos que o paciente usa.
 
-8. COLÁGENO: Evidência emergente para tipo II (articulações). Individualizar.
+8. COLÁGENO: Evidência emergente para tipo II (articulações). Individualizar.
+
+DIRETRIZES DE SEGURANÇA CRÍTICAS:
+- NUNCA recomendar suplementos com contraindicações aos medicamentos em uso
+- Se contraindicação detectada: MARQUE COMO RED FLAG e escalação obrigatória
+- Sempre cite EVIDÊNCIA CIENTÍFICA (meta-análises, estudos randomizados)
+- Dosagens SEMPRE com base em evidências, não em "mais é melhor"
+- Se vermelho em qualquer exame RELACIONADO ao suplemento: RECOMENDE CAUTELA ou CONTRAINDIQUE
 
 IMPORTANTE: Responda APENAS com um JSON válido no formato:
 {
@@ -70,7 +81,7 @@ class AgenteSuplementacao(AgenteBase):
         self.descricao = "Protocolo de suplementação baseado em evidências"
         self.modelo = "pro"
         self.temperatura = 0.3
-        self.system_prompt = SYSTEM_PROMPT
+        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_suplementacao(SYSTEM_PROMPT)
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
@@ -89,10 +100,55 @@ class AgenteSuplementacao(AgenteBase):
 
         protocolo = self._parsear_resposta(resposta)
         contexto.protocolo_suplementacao = protocolo
+        
+        # OPÇÃO A: Validação Minimal - Check for contraindications
+        self._validar_suplementacao(protocolo, contexto)
+        
         contexto.etapa_atual = "suplementacao_concluido"
 
         logger.info(f"✅ {self.nome} concluído - {len(protocolo.suplementos)} suplementos recomendados")
         return contexto
+    
+    def _validar_suplementacao(self, protocolo: ProtocoloSuplementacao, contexto: ContextoPipeline) -> None:
+        """Valida protocolo de suplementação contra medicações e exames."""
+        logger.info("🔍 Validando protocolo de suplementação...")
+        
+        paciente = contexto.paciente
+        medicamentos = paciente.historico_saude.medicamentos or []
+        
+        # RED FLAGS conhecidas de contraindicações
+        contraindications = {
+            "termogênico": ["pressão alta", "arritmia", "taquicardia", "insuficiência cardíaca"],
+            "ômega-3": ["anticoagulante", "aspirina em altas doses"],
+            "vitamina k": ["warfarina", "anticoagulante"],
+            "ferro": ["inibidor de bomba", "anti-ácido"],
+        }
+        
+        for suplemento in protocolo.suplementos:
+            nome_lower = suplemento.nome.lower()
+            
+            # Verificar se é termogênico (RED FLAG automática)
+            if "termogênico" in nome_lower or "queimador" in nome_lower or "fat burner" in nome_lower:
+                logger.error(f"🔴 RED FLAG: {suplemento.nome} é termogênico!")
+                contexto.alertas_validacao.append(f"CONTRAINDICADO: {suplemento.nome} - Risco cardiovascular")
+                contexto.escalacao_necessaria = True
+                contexto.severidade_escalacao = AlertaSeveridade.VERMELHO.value
+                continue
+            
+            # Verificar contraindicações com medicamentos
+            for tipo_supl, medics_contra in contraindications.items():
+                if tipo_supl in nome_lower:
+                    for medic_contra in medics_contra:
+                        if any(medic_contra.lower() in m.lower() for m in medicamentos):
+                            msg = f"CONTRAINDIÇÃO POTENCIAL: {suplemento.nome} + {medic_contra}"
+                            logger.warning(f"⚠️ {msg}")
+                            contexto.alertas_validacao.append(msg)
+        
+        # Validar interações reportadas no protocolo
+        if protocolo.contraindicacoes:
+            for contra in protocolo.contraindicacoes:
+                logger.warning(f"⚠️ Contraindicação reportada: {contra}")
+                contexto.alertas_validacao.append(contra)
 
     def _montar_prompt_suplementacao(self, contexto: ContextoPipeline) -> str:
         p = contexto.paciente
