@@ -24,15 +24,26 @@ class MelhoradorPrompts:
     """Enriquece prompts com contexto científico e disclaimers."""
 
     def __init__(self):
-        self.pubmed = get_pubmed_client()
+        try:
+            self.pubmed = get_pubmed_client()
+        except Exception as e:
+            logger.warning(f"⚠️ Falha ao inicializar cliente PubMed: {e}")
+            logger.warning("📋 PubMed desativado - prompts funcionarão sem enriquecimento de artigos")
+            self.pubmed = None
 
     def melhorar_prompt_exames(self, prompt_original: str) -> str:
         """Adiciona contexto de PubMed ao prompt de análise de exames."""
         
-        pubmed_refs = self.pubmed.buscar_por_topico(
-            "laboratory markers inflammation metabolic health 2024 2025",
-            max_results=3
-        )
+        pubmed_refs = []
+        if self.pubmed:
+            try:
+                pubmed_refs = self.pubmed.buscar_por_topico(
+                    "laboratory markers inflammation metabolic health 2024 2025",
+                    max_results=3
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar artigos PubMed: {e}")
+                pubmed_refs = []
 
         refs_texto = ""
         if pubmed_refs:
@@ -58,10 +69,16 @@ DIRETRIZES DE SEGURANÇA CRÍTICAS:
     def melhorar_prompt_suplementacao(self, prompt_original: str) -> str:
         """Adiciona contexto de PubMed ao prompt de suplementação."""
         
-        pubmed_refs = self.pubmed.buscar_por_topico(
-            "supplement efficacy safety evidence 2024 2025",
-            max_results=3
-        )
+        pubmed_refs = []
+        if self.pubmed:
+            try:
+                pubmed_refs = self.pubmed.buscar_por_topico(
+                    "supplement efficacy safety evidence 2024 2025",
+                    max_results=3
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar artigos PubMed: {e}")
+                pubmed_refs = []
 
         refs_texto = ""
         if pubmed_refs:
@@ -83,10 +100,16 @@ POSICIONAMENTO CRÍTICO SOBRE SUPLEMENTOS:
     def melhorar_prompt_nutricionista(self, prompt_original: str) -> str:
         """Adiciona contexto de PubMed ao prompt de nutrição."""
         
-        pubmed_refs = self.pubmed.buscar_por_topico(
-            "personalized nutrition macronutrients gut health 2024 2025",
-            max_results=3
-        )
+        pubmed_refs = []
+        if self.pubmed:
+            try:
+                pubmed_refs = self.pubmed.buscar_por_topico(
+                    "personalized nutrition macronutrients gut health 2024 2025",
+                    max_results=3
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar artigos PubMed: {e}")
+                pubmed_refs = []
 
         refs_texto = ""
         if pubmed_refs:
@@ -110,10 +133,16 @@ PRINCÍPIOS CLÍNICOS CRÍTICOS:
     def melhorar_prompt_treino(self, prompt_original: str) -> str:
         """Adiciona contexto de PubMed ao prompt de treino."""
         
-        pubmed_refs = self.pubmed.buscar_por_topico(
-            "resistance training periodization recovery HRV 2024 2025",
-            max_results=3
-        )
+        pubmed_refs = []
+        if self.pubmed:
+            try:
+                pubmed_refs = self.pubmed.buscar_por_topico(
+                    "resistance training periodization recovery HRV 2024 2025",
+                    max_results=3
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao buscar artigos PubMed: {e}")
+                pubmed_refs = []
 
         refs_texto = ""
         if pubmed_refs:
