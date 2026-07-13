@@ -1,10 +1,17 @@
 const STAGES = [
   { key: 'triagem', label: 'Triagem', detail: 'Anamnese estruturada' },
   { key: 'exames', label: 'Exames', detail: 'Marcadores laboratoriais' },
-  { key: 'suplementacao', label: 'Suplementos', detail: 'Protocolo e interações' },
+  { key: 'suplementacao', label: 'Suplementação', detail: 'Protocolo e interações' },
   { key: 'nutricao', label: 'Nutrição', detail: 'Plano alimentar' },
   { key: 'treino', label: 'Treino', detail: 'Estratégia física' },
-  { key: 'consolidacao', label: 'Consolidação', detail: 'Laudo integrado' },
+  { key: 'consolidacao', label: 'Consolidação', detail: 'Síntese multidisciplinar' },
+];
+
+const DETAIL_TABS = [
+  { key: 'overview', label: 'Visão geral' },
+  ...STAGES.map(stage => ({ key: stage.key, label: stage.label })),
+  { key: 'report', label: 'Laudo' },
+  { key: 'pdf', label: 'Exames PDF' },
 ];
 
 const STATUS = {
@@ -16,6 +23,12 @@ const STATUS = {
   cancelled: 'Cancelado',
 };
 
+const PAGE_META = {
+  operation: { eyebrow: 'Dashboard clínico', title: 'Central de atendimentos' },
+  patients: { eyebrow: 'Gestão clínica', title: 'Pacientes' },
+  reports: { eyebrow: 'Documentos clínicos', title: 'Relatórios e laudos' },
+};
+
 const state = {
   csrf: null,
   selectedId: null,
@@ -24,6 +37,7 @@ const state = {
   jobs: [],
   selectedFiles: [],
   currentJob: null,
+  activePage: 'operation',
   activeTab: 'overview',
   approvalDraft: { reviewer: '', regNumber: '', regType: 'CRM', notes: '' },
 };
@@ -79,6 +93,121 @@ function isEditingField() {
   return Boolean(active && active.matches('input, textarea, select'));
 }
 
+function initNavigation() {
+  const main = document.querySelector('main');
+  if (!$('pageOperation')) {
+    const operation = document.createElement('section');
+    operation.id = 'pageOperation';
+    operation.className = 'page-view';
+    while (main.firstChild) operation.append(main.firstChild);
+    main.append(operation);
+
+    const patients = document.createElement('section');
+    patients.id = 'pagePatients';
+    patients.className = 'page-view hidden';
+    patients.innerHTML = `
+      <section class="page-intro">
+        <div><div class="eyebrow">Base de pacientes</div><h2>Pacientes e histórico clínico</h2><p>Localize rapidamente cada paciente, seus atendimentos, documentos e situação de revisão.</p></div>
+        <button class="btn btn-lime" id="patientsNewCase" type="button">Novo atendimento</button>
+      </section>
+      <article class="card view-card">
+        <div class="card-head view-toolbar">
+          <div><div class="eyebrow">Cadastros</div><h3>Pacientes registrados</h3></div>
+          <label class="search-field"><span>Buscar</span><input id="patientSearch" type="search" placeholder="Nome do paciente"></label>
+        </div>
+        <div class="card-body"><div id="patientsGrid" class="patients-grid"></div></div>
+      </article>`;
+    main.append(patients);
+
+    const reports = document.createElement('section');
+    reports.id = 'pageReports';
+    reports.className = 'page-view hidden';
+    reports.innerHTML = `
+      <section class="page-intro">
+        <div><div class="eyebrow">Revisão profissional</div><h2>Relatórios e laudos</h2><p>Acompanhe laudos em revisão, documentos aprovados e responsáveis pela assinatura.</p></div>
+      </section>
+      <section id="reportMetrics" class="report-metrics"></section>
+      <article class="card view-card">
+        <div class="card-head view-toolbar">
+          <div><div class="eyebrow">Documentos</div><h3>Laudos gerados</h3></div>
+          <label class="search-field"><span>Buscar</span><input id="reportSearch" type="search" placeholder="Paciente ou status"></label>
+        </div>
+        <div class="card-body"><div id="reportsGrid" class="reports-grid"></div></div>
+      </article>`;
+    main.append(reports);
+  }
+
+  document.querySelectorAll('.nav button').forEach((button, index) => {
+    const page = ['operation', 'patients', 'reports'][index];
+    button.dataset.page = page;
+    button.onclick = () => selectPage(page);
+  });
+
+  $('patientsNewCase')?.addEventListener('click', () => {
+    selectPage('operation');
+    $('nome').focus();
+    $('nome').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  $('patientSearch')?.addEventListener('input', () => renderPatientsPage(state.jobs));
+  $('reportSearch')?.addEventListener('input', () => renderReportsPage(state.jobs));
+}
+
+function initSpecialtyTabs() {
+  const tabs = document.querySelector('.tabs');
+  if (!tabs || tabs.dataset.ready === 'true') return;
+  tabs.dataset.ready = 'true';
+  tabs.replaceChildren();
+
+  const outputPanel = $('panelOutputs');
+  if (outputPanel) outputPanel.remove();
+
+  const reportPanel = $('panelReport');
+  STAGES.forEach(stage => {
+    const panel = document.createElement('div');
+    panel.id = `panel${stage.key.charAt(0).toUpperCase()}${stage.key.slice(1)}`;
+    panel.className = 'panel hidden specialty-panel';
+    panel.dataset.panel = stage.key;
+    reportPanel.parentElement.insertBefore(panel, reportPanel);
+  });
+
+  [['panelOverview', 'overview'], ['panelReport', 'report'], ['panelPdf', 'pdf']].forEach(([id, name]) => {
+    const panel = $(id);
+    if (panel) panel.dataset.panel = name;
+  });
+
+  DETAIL_TABS.forEach(tab => {
+    const button = document.createElement('button');
+    button.className = `tab${tab.key === state.activeTab ? ' active' : ''}`;
+    button.dataset.tab = tab.key;
+    button.type = 'button';
+    button.textContent = tab.label;
+    button.addEventListener('click', () => selectTab(tab.key));
+    tabs.append(button);
+  });
+}
+
+function selectPage(name) {
+  state.activePage = PAGE_META[name] ? name : 'operation';
+  document.querySelectorAll('.page-view').forEach(page => {
+    page.classList.toggle('hidden', page.id !== `page${state.activePage.charAt(0).toUpperCase()}${state.activePage.slice(1)}`);
+  });
+  document.querySelectorAll('.nav button').forEach(button => button.classList.toggle('active', button.dataset.page === state.activePage));
+  document.querySelector('.topbar .eyebrow').textContent = PAGE_META[state.activePage].eyebrow;
+  document.querySelector('.page-title').textContent = PAGE_META[state.activePage].title;
+  if (state.activePage === 'patients') renderPatientsPage(state.jobs);
+  if (state.activePage === 'reports') renderReportsPage(state.jobs);
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+function openJobFromView(id, tab = 'overview') {
+  selectPage('operation');
+  state.activeTab = tab;
+  loadDetail(id).then(() => {
+    $('detailCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 async function checkSession() {
   const session = await api('/api/session');
   if (session.authenticated) {
@@ -89,6 +218,9 @@ async function checkSession() {
 }
 
 async function boot() {
+  initNavigation();
+  initSpecialtyTabs();
+  selectPage(state.activePage);
   await health();
   await loadJobs();
   if (state.poll) clearInterval(state.poll);
@@ -137,14 +269,14 @@ $('refresh').onclick = async () => {
 };
 
 $('newAttendanceHero').onclick = () => {
+  selectPage('operation');
   $('nome').focus();
   $('nome').scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
-document.querySelectorAll('.tab').forEach(button => button.addEventListener('click', () => selectTab(button.dataset.tab)));
-
 function selectTab(name) {
-  state.activeTab = name;
-  document.querySelectorAll('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
-  ['Overview', 'Outputs', 'Report', 'Pdf'].forEach(key => $(`panel${key}`).classList.toggle('hidden', key.toLowerCase() !== name));
+  const valid = DETAIL_TABS.some(tab => tab.key === name);
+  state.activeTab = valid ? name : 'overview';
+  document.querySelectorAll('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === state.activeTab));
+  document.querySelectorAll('.panel[data-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.panel !== state.activeTab));
 }
