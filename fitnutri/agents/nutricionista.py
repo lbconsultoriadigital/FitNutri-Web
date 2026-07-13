@@ -13,7 +13,12 @@ from ..llm.prompt_enhancer import get_prompt_enhancer
 
 logger = logging.getLogger(__name__)
 validador = ValidadorFitNutri()
-prompt_enhancer = get_prompt_enhancer()
+
+try:
+    prompt_enhancer = get_prompt_enhancer()
+except Exception as e:
+    logger.warning(f"⚠️ Falha ao inicializar PromptEnhancer: {e}")
+    prompt_enhancer = None
 
 SYSTEM_PROMPT = """Você é Felipe Leone, nutricionista clínico e esportivo da Clínica FitNutri.
 Crie planos alimentares PERSONALIZADOS, saborosos e baseados em evidências.
@@ -99,11 +104,14 @@ class AgenteNutricionista(AgenteBase):
         self.descricao = "Cria planos alimentares personalizados"
         self.modelo = "flash"
         self.temperatura = 0.4
-        try:
-            self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_nutricionista(SYSTEM_PROMPT)
-        except Exception as e:
-            logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
-            logger.warning("📋 Usando prompt padrão sem enriquecimento")
+        if prompt_enhancer:
+            try:
+                self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_nutricionista(SYSTEM_PROMPT)
+            except Exception as e:
+                logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
+                logger.warning("📋 Usando prompt padrão sem enriquecimento")
+                self.system_prompt = SYSTEM_PROMPT
+        else:
             self.system_prompt = SYSTEM_PROMPT
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:

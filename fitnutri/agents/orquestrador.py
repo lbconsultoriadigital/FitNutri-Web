@@ -15,7 +15,12 @@ from ..llm.prompt_enhancer import get_prompt_enhancer
 logger = logging.getLogger(__name__)
 validador = ValidadorFitNutri()
 escalacao = SistemaEscalacao()
-prompt_enhancer = get_prompt_enhancer()
+
+try:
+    prompt_enhancer = get_prompt_enhancer()
+except Exception as e:
+    logger.warning(f"⚠️ Falha ao inicializar PromptEnhancer: {e}")
+    prompt_enhancer = None
 
 SYSTEM_PROMPT = """Você é o Orquestrador Clínico Master da Clínica FitNutri.
 Sua função é CONSOLIDAR todo o trabalho dos especialistas em um laudo final completo, profissional e acolhedor.
@@ -80,11 +85,14 @@ class AgenteOrquestrador(AgenteBase):
         self.descricao = "Consolida o laudo multidisciplinar completo"
         self.modelo = "pro"
         self.temperatura = 0.3
-        try:
-            self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_orquestrador(SYSTEM_PROMPT)
-        except Exception as e:
-            logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
-            logger.warning("📋 Usando prompt padrão sem enriquecimento")
+        if prompt_enhancer:
+            try:
+                self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_orquestrador(SYSTEM_PROMPT)
+            except Exception as e:
+                logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
+                logger.warning("📋 Usando prompt padrão sem enriquecimento")
+                self.system_prompt = SYSTEM_PROMPT
+        else:
             self.system_prompt = SYSTEM_PROMPT
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:

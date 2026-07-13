@@ -15,7 +15,12 @@ from ..llm.prompt_enhancer import get_prompt_enhancer
 logger = logging.getLogger(__name__)
 validador = ValidadorFitNutri()
 escalacao = SistemaEscalacao()
-prompt_enhancer = get_prompt_enhancer()
+
+try:
+    prompt_enhancer = get_prompt_enhancer()
+except Exception as e:
+    logger.warning(f"⚠️ Falha ao inicializar PromptEnhancer: {e}")
+    prompt_enhancer = None
 
 SYSTEM_PROMPT = """Você é o Dr. Henrique Mendonça, especialista em análises clínicas da Clínica FitNutri.
 Sua função é interpretar exames laboratoriais com profundidade clínica.
@@ -98,7 +103,16 @@ class AgenteExames(AgenteBase):
         self.descricao = "Interpreta exames laboratoriais com profundidade clínica"
         self.modelo = "pro"
         self.temperatura = 0.2
-        self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_exames(SYSTEM_PROMPT)
+        
+        if prompt_enhancer:
+            try:
+                self.system_prompt = prompt_enhancer.melhorador.melhorar_prompt_exames(SYSTEM_PROMPT)
+            except Exception as e:
+                logger.warning(f"⚠️ Não foi possível enriquecer prompt com PubMed: {e}")
+                logger.warning("📋 Usando prompt padrão sem enriquecimento")
+                self.system_prompt = SYSTEM_PROMPT
+        else:
+            self.system_prompt = SYSTEM_PROMPT
 
     def executar(self, contexto: ContextoPipeline) -> ContextoPipeline:
         logger.info(f"▶️ Executando: {self.nome}")
