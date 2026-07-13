@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from fitnutri.output.html_renderer import render_report_html
+
 from .config import PIPELINE_STAGES, manual_processing
 
 
@@ -66,10 +68,17 @@ def public_job(job: dict[str, Any], include_artifacts: bool = False) -> dict[str
     }
     if include_artifacts:
         context_data = job.get("context_data") or {}
+        markdown_text = job.get("laudo_markdown")
+        report_html = job.get("laudo_html")
+        if markdown_text:
+            try:
+                report_html = render_report_html(str(markdown_text))
+            except Exception:
+                pass
         result.update({
             "agent_outputs": extract_agent_outputs(context_data),
             "laudo_json": job.get("laudo_json"),
-            "laudo_markdown": job.get("laudo_markdown"),
-            "laudo_html": job.get("laudo_html"),
+            "laudo_markdown": markdown_text,
+            "laudo_html": report_html,
         })
     return result
